@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vessel-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - vessel-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: vessel-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-vessel}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-vessel}
+      - POSTGRES_DB=${POSTGRES_DB:-vessel}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vessel-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vessel-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - vessel-network
+    restart: unless-stopped
+
+networks:
+  vessel-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

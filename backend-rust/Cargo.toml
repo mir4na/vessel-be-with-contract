@@ -1,0 +1,78 @@
+[package]
+name = "vessel-backend"
+version = "1.0.0"
+edition = "2021"
+authors = ["Vessel Team"]
+description = "VESSEL - Invoice Factoring Platform on Base Network"
+
+[dependencies]
+# Web Framework
+actix-web = "4"
+actix-rt = "2"
+actix-cors = "0.7"
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio", "postgres", "uuid", "chrono", "rust_decimal"] }
+deadpool-redis = "0.14"
+redis = { version = "0.24", features = ["tokio-comp"] }
+
+# Authentication & Security
+jsonwebtoken = "9"
+bcrypt = "0.15"
+rand = "0.8"
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Environment
+dotenvy = "0.15"
+
+# Blockchain (Ethereum/Base)
+ethers = { version = "2", features = ["legacy", "rustls"] }
+
+# HTTP Client (for Pinata, etc.)
+reqwest = { version = "0.11", features = ["json", "multipart"] }
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error Handling
+thiserror = "1"
+anyhow = "1"
+
+# Decimal for financial calculations
+rust_decimal = { version = "1", features = ["serde"] }
+
+# Hashing
+md5 = "0.7"
+
+# Email
+lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls", "smtp-transport", "builder"] }
+
+# Multipart file upload
+actix-multipart = "0.6"
+futures-util = "0.3"
+
+# Rate Limiting
+governor = "0.6"
+
+[dev-dependencies]
+actix-rt = "2"
+
+[profile.release]
+opt-level = 3
+lto = true

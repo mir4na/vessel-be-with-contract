@@ -1,0 +1,77 @@
+# =============================================
+# Environment files (IMPORTANT: contains secrets)
+# =============================================
+.env
+.env.*
+!.env.example
+
+# =============================================
+# Rust Backend (Actix)
+# =============================================
+backend-rust/target/
+
+# =============================================
+# Smart Contract (Hardhat)
+# =============================================
+smart-contract/node_modules/
+smart-contract/artifacts/
+smart-contract/cache/
+smart-contract/coverage/
+smart-contract/typechain-types/
+smart-contract/coverage.json
+smart-contract/deployments-*.json
+!smart-contract/deployments-example.json
+
+# =============================================
+# Logs
+# =============================================
+*.log
+logs/
+
+# =============================================
+# IDE & Editor
+# =============================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-*
+.project
+.settings/
+*.code-workspace
+
+# =============================================
+# OS Files
+# =============================================
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+._*
+
+# =============================================
+# Internal docs & notes
+# =============================================
+prompt*.txt
+database.txt
+documentation.md
+TESTING.md
+notes/
+*.draft.md
+
+# =============================================
+# Docker
+# =============================================
+docker-compose.override.yml
+
+# =============================================
+# Misc
+# =============================================
+*.pem
+*.key
+*.cert
+*.p12
+.claude/
+tmp/
+temp/
