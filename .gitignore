@@ -75,3 +75,4 @@ docker-compose.override.yml
 .claude/
 tmp/
 temp/
+backend/target/debug/*
