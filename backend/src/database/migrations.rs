@@ -389,6 +389,12 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         r#"CREATE INDEX IF NOT EXISTS idx_wallet_nonces_address ON wallet_nonces(wallet_address);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_wallet_nonces_expires ON wallet_nonces(expires_at);"#,
 
+        // Fix timestamp columns to use TIMESTAMPTZ for chrono compatibility
+        r#"ALTER TABLE otp_codes ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';"#,
+        r#"ALTER TABLE otp_codes ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
+        r#"ALTER TABLE wallet_nonces ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';"#,
+        r#"ALTER TABLE wallet_nonces ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
+
         // Insert default country tiers
         r#"INSERT INTO country_tiers (country_code, country_name, tier, flag_emoji) VALUES
             ('USA', 'United States', 1, '🇺🇸'),

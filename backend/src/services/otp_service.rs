@@ -82,15 +82,37 @@ impl OtpService {
     }
 
     pub async fn verify_otp(&self, email: &str, code: &str, purpose: &str) -> AppResult<VerifyOtpResponse> {
-        // Find valid OTP
+        // First, find the latest OTP for this email and purpose
         let otp = self.otp_repo
-            .find_valid(email, code, purpose)
+            .find_latest(email, purpose)
             .await?
-            .ok_or_else(|| AppError::ValidationError("Invalid or expired OTP".to_string()))?;
+            .ok_or_else(|| AppError::ValidationError("No OTP found. Please request a new OTP.".to_string()))?;
 
-        // Check max attempts
+        // Check if already verified
+        if otp.verified {
+            return Err(AppError::ValidationError("OTP already used. Please request a new OTP.".to_string()));
+        }
+
+        // Check max attempts first
         if otp.attempts >= self.config.otp_max_attempts {
-            return Err(AppError::ValidationError("Max OTP attempts exceeded".to_string()));
+            return Err(AppError::ValidationError("Maximum attempts exceeded. Please request a new OTP.".to_string()));
+        }
+
+        // Check if expired
+        if otp.expires_at < Utc::now() {
+            return Err(AppError::ValidationError("OTP has expired. Please request a new OTP.".to_string()));
+        }
+
+        // Check if code matches
+        if otp.code != code {
+            // Increment attempts on wrong code
+            self.otp_repo.increment_attempts(otp.id).await?;
+            let remaining = self.config.otp_max_attempts - otp.attempts - 1;
+            if remaining > 0 {
+                return Err(AppError::ValidationError(format!("Invalid OTP code. {} attempts remaining.", remaining)));
+            } else {
+                return Err(AppError::ValidationError("Invalid OTP code. Maximum attempts exceeded. Please request a new OTP.".to_string()));
+            }
         }
 
         // Mark as verified

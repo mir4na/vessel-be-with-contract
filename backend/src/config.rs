@@ -73,6 +73,9 @@ pub struct Config {
 
     // Currency Conversion
     pub default_buffer_rate: f64,
+
+    // Google OAuth
+    pub google_client_id: String,
 }
 
 impl Config {
@@ -176,6 +179,9 @@ impl Config {
             default_buffer_rate: get_env_or_default("DEFAULT_BUFFER_RATE", "0.015")
                 .parse()
                 .unwrap_or(0.015),
+
+            // Google OAuth
+            google_client_id: get_env_or_default("GOOGLE_CLIENT_ID", ""),
         })
     }
 }

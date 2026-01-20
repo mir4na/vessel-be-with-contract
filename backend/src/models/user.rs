@@ -313,6 +313,19 @@ pub struct InvestorWalletRegisterRequest {
     pub cooperative_agreement: bool,
 }
 
+// Google OAuth
+#[derive(Debug, Deserialize)]
+pub struct GoogleAuthRequest {
+    pub id_token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GoogleAuthResponse {
+    pub email: String,
+    pub otp_token: String,
+    pub expires_in_minutes: i64,
+}
+
 // Admin request types
 #[derive(Debug, Deserialize)]
 pub struct AdminGrantBalanceRequest {

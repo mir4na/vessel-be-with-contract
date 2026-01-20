@@ -94,6 +94,7 @@ async fn main() -> std::io::Result<()> {
         user_repo.clone(),
         jwt_manager.clone(),
         otp_service.clone(),
+        config.clone(),
     ));
     let mitra_service = Arc::new(services::MitraService::new(
         mitra_repo.clone(),
@@ -192,6 +193,8 @@ async fn main() -> std::io::Result<()> {
                             .route("/register", web::post().to(handlers::auth::register))
                             .route("/login", web::post().to(handlers::auth::login))
                             .route("/refresh", web::post().to(handlers::auth::refresh_token))
+                            // Google OAuth (for mitra/admin - skips OTP)
+                            .route("/google", web::post().to(handlers::auth::google_auth))
                             // Wallet auth (for investors)
                             .route("/wallet/nonce", web::post().to(handlers::auth::get_wallet_nonce))
                             .route("/wallet/login", web::post().to(handlers::auth::wallet_login))

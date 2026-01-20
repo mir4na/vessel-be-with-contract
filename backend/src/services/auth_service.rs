@@ -9,7 +9,9 @@ use crate::error::{AppError, AppResult};
 use crate::models::{
     User, RegisterRequest, LoginRequest, LoginResponse,
     WalletLoginRequest, WalletNonceResponse, InvestorWalletRegisterRequest,
+    GoogleAuthRequest, GoogleAuthResponse,
 };
+use crate::config::Config;
 use crate::repository::UserRepository;
 use crate::utils::{JwtManager, hash_password, verify_password, generate_random_token};
 
@@ -19,6 +21,7 @@ pub struct AuthService {
     user_repo: Arc<UserRepository>,
     jwt_manager: Arc<JwtManager>,
     otp_service: Arc<OtpService>,
+    config: Arc<Config>,
     // Store nonces for wallet authentication (in production, use Redis)
     wallet_nonces: Arc<RwLock<HashMap<String, String>>>,
 }
@@ -28,11 +31,13 @@ impl AuthService {
         user_repo: Arc<UserRepository>,
         jwt_manager: Arc<JwtManager>,
         otp_service: Arc<OtpService>,
+        config: Arc<Config>,
     ) -> Self {
         Self {
             user_repo,
             jwt_manager,
             otp_service,
+            config,
             wallet_nonces: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -307,5 +312,54 @@ impl AuthService {
     /// Verify OTP and return token (used for email verification)
     pub async fn verify_otp(&self, req: crate::models::VerifyOtpRequest) -> AppResult<crate::models::VerifyOtpResponse> {
         self.otp_service.verify_otp(&req.email, &req.code, &req.purpose).await
+    }
+
+    /// Verify Google ID token and return OTP token (skips email OTP verification)
+    pub async fn google_auth(&self, req: GoogleAuthRequest) -> AppResult<GoogleAuthResponse> {
+        // Verify Google ID token by calling Google's tokeninfo endpoint
+        let client = reqwest::Client::new();
+        let google_response = client
+            .get(format!(
+                "https://oauth2.googleapis.com/tokeninfo?id_token={}",
+                req.id_token
+            ))
+            .send()
+            .await
+            .map_err(|e| AppError::ValidationError(format!("Failed to verify Google token: {}", e)))?;
+
+        if !google_response.status().is_success() {
+            return Err(AppError::ValidationError("Invalid Google token".to_string()));
+        }
+
+        #[derive(serde::Deserialize)]
+        struct GoogleTokenInfo {
+            email: String,
+            email_verified: String,
+            aud: String,
+        }
+
+        let token_info: GoogleTokenInfo = google_response
+            .json()
+            .await
+            .map_err(|e| AppError::ValidationError(format!("Failed to parse Google response: {}", e)))?;
+
+        // Verify the token audience matches our client ID
+        if !self.config.google_client_id.is_empty() && token_info.aud != self.config.google_client_id {
+            return Err(AppError::ValidationError("Invalid Google client ID".to_string()));
+        }
+
+        // Verify email is verified by Google
+        if token_info.email_verified != "true" {
+            return Err(AppError::ValidationError("Google email is not verified".to_string()));
+        }
+
+        // Generate OTP token directly (skipping email OTP since Google already verified)
+        let otp_token = self.jwt_manager.generate_otp_token(&token_info.email, "registration")?;
+
+        Ok(GoogleAuthResponse {
+            email: token_info.email,
+            otp_token,
+            expires_in_minutes: 30,
+        })
     }
 }

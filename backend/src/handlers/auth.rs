@@ -4,6 +4,7 @@ use crate::error::AppResult;
 use crate::models::{
     RegisterRequest, LoginRequest, VerifyOtpRequest, SendOtpRequest,
     WalletLoginRequest, RefreshTokenRequest, GetNonceRequest, InvestorWalletRegisterRequest,
+    GoogleAuthRequest,
 };
 use crate::utils::ApiResponse;
 use super::AppState;
@@ -91,4 +92,14 @@ pub async fn refresh_token(
         }),
         "Token refreshed successfully"
     )))
+}
+
+/// POST /api/v1/auth/google
+/// Google OAuth authentication - verifies Google token and returns OTP token
+pub async fn google_auth(
+    state: web::Data<AppState>,
+    body: web::Json<GoogleAuthRequest>,
+) -> AppResult<HttpResponse> {
+    let result = state.auth_service.google_auth(body.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::success(result, "Google authentication successful")))
 }
