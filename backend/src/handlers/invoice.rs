@@ -277,6 +277,7 @@ pub async fn reject(
 }
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)] // Fields used for query deserialization
 pub struct InvoiceListQuery {
     pub status: Option<String>,
     pub page: Option<i32>,

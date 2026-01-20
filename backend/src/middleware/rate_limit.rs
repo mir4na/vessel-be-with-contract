@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use crate::utils::ApiResponse;
 
 #[derive(Clone)]
+#[allow(dead_code)] // Used for rate limiting configuration
 pub struct RateLimitConfig {
     pub requests_per_window: u32,
     pub window_duration: Duration,

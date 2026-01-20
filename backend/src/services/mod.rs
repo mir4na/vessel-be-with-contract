@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Many service methods are implemented for future features
+
 mod auth_service;
 mod otp_service;
 mod email_service;

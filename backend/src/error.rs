@@ -3,6 +3,7 @@ use serde_json::json;
 use std::fmt;
 
 #[derive(Debug)]
+#[allow(dead_code)] // Some variants reserved for future business logic
 pub enum AppError {
     // Authentication errors
     Unauthorized(String),

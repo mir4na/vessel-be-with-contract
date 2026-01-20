@@ -210,6 +210,7 @@ pub async fn process_repayment(
 }
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)] // Fields used for query deserialization
 pub struct PoolListQuery {
     pub status: Option<String>,
     pub page: Option<i32>,
@@ -223,12 +224,14 @@ pub struct MarketplaceQuery {
 }
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)] // Fields used for query deserialization
 pub struct PaginationQuery {
     pub page: Option<i32>,
     pub per_page: Option<i32>,
 }
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)] // Fields used for request deserialization
 pub struct CalculateInvestmentRequest {
     pub pool_id: Uuid,
     pub amount: f64,
@@ -241,6 +244,7 @@ pub struct ConfirmInvestmentRequest {
 }
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)] // Fields used for request deserialization
 pub struct ExporterDisbursementRequest {
     pub pool_id: Uuid,
     pub bank_account_id: Option<Uuid>,

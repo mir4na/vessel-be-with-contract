@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Utility functions available for future features
+
 mod jwt;
 mod hash;
 pub mod response;

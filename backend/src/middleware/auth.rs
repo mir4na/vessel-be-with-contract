@@ -97,6 +97,7 @@ where
 }
 
 // Optional auth middleware - doesn't fail if no token, just doesn't set claims
+#[allow(dead_code)] // Reserved for future use
 pub struct OptionalAuthMiddleware {
     config: Arc<Config>,
 }
@@ -127,6 +128,7 @@ where
     }
 }
 
+#[allow(dead_code)] // Used by OptionalAuthMiddleware
 pub struct OptionalAuthMiddlewareService<S> {
     service: S,
     config: Arc<Config>,
@@ -227,6 +229,7 @@ where
 }
 
 // Mitra-only middleware
+#[allow(dead_code)] // Reserved for future use
 pub struct MitraOnlyMiddleware;
 
 impl<S, B> Transform<S, ServiceRequest> for MitraOnlyMiddleware
@@ -246,6 +249,7 @@ where
     }
 }
 
+#[allow(dead_code)] // Used by MitraOnlyMiddleware
 pub struct MitraOnlyMiddlewareService<S> {
     service: S,
 }

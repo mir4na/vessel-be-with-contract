@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Many structs/methods are scaffolded for future features
+
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use std::sync::Arc;

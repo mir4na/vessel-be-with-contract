@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Repository methods available for future features
+
 mod user_repository;
 mod invoice_repository;
 mod funding_repository;

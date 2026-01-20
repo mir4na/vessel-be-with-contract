@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppResult;
-use crate::models::{Invoice, InvoiceDocument, InvoiceNft, InvoiceFilter};
+use crate::models::{Invoice, InvoiceDocument, InvoiceNft};
 
 #[derive(Clone)]
 pub struct InvoiceRepository {

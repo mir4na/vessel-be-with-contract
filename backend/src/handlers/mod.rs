@@ -9,7 +9,7 @@ pub mod risk_questionnaire;
 pub mod importer;
 pub mod blockchain;
 
-use actix_web::{web, HttpResponse};
+use actix_web::HttpResponse;
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -19,6 +19,7 @@ use crate::services::*;
 use crate::utils::{ApiResponse, JwtManager};
 
 /// Application state shared across all handlers
+#[allow(dead_code)] // Fields accessed by various handlers via web::Data
 pub struct AppState {
     pub config: Arc<Config>,
     pub db_pool: PgPool,

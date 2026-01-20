@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 
 /// Application configuration loaded from environment variables
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields are loaded from env and may be used in future features
 pub struct Config {
     // Server
     pub port: u16,

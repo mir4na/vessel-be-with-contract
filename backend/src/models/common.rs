@@ -1,8 +1,9 @@
+#![allow(dead_code)] // Common models for future use
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Re-export ApiResponse from utils for backward compatibility
-pub use crate::utils::response::{ApiResponse, ApiError, PaginationMeta};
+// Note: ApiResponse, ApiError, PaginationMeta are available from crate::utils::response directly
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PaginationParams {

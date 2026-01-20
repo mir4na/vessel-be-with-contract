@@ -2,4 +2,4 @@ pub mod auth;
 pub mod rate_limit;
 
 pub use auth::*;
-pub use rate_limit::*;
+// Note: rate_limit is available but not re-exported as it's used directly when needed
