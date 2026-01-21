@@ -9,7 +9,10 @@ jobs:
       - name: Send message to Discord
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
+          BRANCH=${GITHUB_REF#refs/heads/}
+          ESCAPED_MSG=$(echo "$COMMIT_MSG" | sed 's/"/\\"/g' | tr -d '\n')
           curl -H "Content-Type: application/json" \
-          -d "{\"content\":\"New push to **${GITHUB_REPOSITORY}** by ${GITHUB_ACTOR}\"}" \
+          -d "{\"content\":\"Push to **${GITHUB_REPOSITORY}**\n By: **${GITHUB_ACTOR}**\n Branch: \`${BRANCH}\`\n Commit: ${ESCAPED_MSG}\"}" \
           $DISCORD_WEBHOOK
