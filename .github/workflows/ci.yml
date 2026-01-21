@@ -1,0 +1,80 @@
+name: Vessel Backend CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: vessel
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: vessel_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+
+    - name: Cache Cargo Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Install SQLx CLI
+      run: cargo install sqlx-cli --no-default-features --features postgres
+
+    - name: Check Formatting
+      working-directory: ./backend
+      run: cargo fmt -- --check
+
+    - name: Clippy Linting
+      working-directory: ./backend
+      run: cargo clippy -- -D warnings
+
+    - name: Run Tests
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgres://vessel:password@localhost:5432/vessel_db
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test_secret_key_vessel_backend_2025
+        RUST_LOG: info
+      run: cargo test

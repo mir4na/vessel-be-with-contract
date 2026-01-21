@@ -244,26 +244,36 @@ impl AuthService {
         self.user_repo.update_member_status(user.id, "calon_anggota_mitra").await?;
         user.member_status = "calon_anggota_mitra".to_string();
 
-        // Set profile_completed = true (mitra doesn't need KYC)
-        self.user_repo.set_profile_completed(user.id, true).await?;
-        user.profile_completed = true;
+        // Set profile_completed based on whether company details were provided
+        // Check if company_name is SOME and NOT EMPTY string
+        let is_profile_complete = req.company_name.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
+        self.user_repo.set_profile_completed(user.id, is_profile_complete).await?;
+        user.profile_completed = is_profile_complete;
 
-        // Auto-create mitra application with pending status
-        let _mitra_application = self.mitra_repo.create(
-            user.id,
-            &req.company_name,
-            req.company_type.as_deref().unwrap_or("PT"),
-            &req.npwp,
-            &req.annual_revenue,
-            req.address.as_deref(),
-            req.business_description.as_deref(),
-            req.website_url.as_deref(),
-            req.year_founded,
-            req.key_products.as_deref(),
-            req.export_markets.as_deref(),
-        ).await?;
-
-        tracing::info!("Mitra registered: {} with pending application for company: {}", req.email, req.company_name);
+        // Auto-create mitra application with pending status ONLY if company name provided and not empty
+        if let Some(company_name) = &req.company_name {
+            if !company_name.is_empty() {
+                let _mitra_application = self.mitra_repo.create(
+                    user.id,
+                    company_name,
+                    req.company_type.as_deref().unwrap_or("PT"),
+                    req.npwp.as_deref().unwrap_or(""),
+                    req.annual_revenue.as_deref().unwrap_or(""),
+                    req.address.as_deref(),
+                    req.business_description.as_deref(),
+                    req.website_url.as_deref(),
+                    req.year_founded,
+                    req.key_products.as_deref(),
+                    req.export_markets.as_deref(),
+                ).await?;
+                
+                tracing::info!("Mitra registered: {} with pending application for company: {}", req.email, company_name);
+            } else {
+                 tracing::info!("Mitra registered: {} (without initial company profile)", req.email);
+            }
+        } else {
+             tracing::info!("Mitra registered: {} (without initial company profile)", req.email);
+        }
 
         // Generate tokens
         let access_token = self.jwt_manager.generate_access_token(user.id, &user.email, &user.role)?;

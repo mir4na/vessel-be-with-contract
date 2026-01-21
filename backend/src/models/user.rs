@@ -113,12 +113,10 @@ pub struct RegisterRequest {
     pub cooperative_agreement: bool,
     pub otp_token: String,
     // Mitra application fields
-    #[validate(length(min = 1, message = "Company name is required"))]
-    pub company_name: String,
+    pub company_name: Option<String>,
     pub company_type: Option<String>,
-    #[validate(length(min = 15, max = 16, message = "NPWP must be 15-16 characters"))]
-    pub npwp: String,
-    pub annual_revenue: String,
+    pub npwp: Option<String>,
+    pub annual_revenue: Option<String>,
     pub address: Option<String>,
     pub business_description: Option<String>,
     pub website_url: Option<String>,
