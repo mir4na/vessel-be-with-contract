@@ -25,3 +25,6 @@ pub use mitra_service::*;
 pub use currency_service::*;
 pub use risk_questionnaire_service::*;
 pub use escrow_service::*;
+
+#[cfg(test)]
+mod tests;

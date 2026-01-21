@@ -92,6 +92,7 @@ async fn main() -> std::io::Result<()> {
     ));
     let auth_service = Arc::new(services::AuthService::new(
         user_repo.clone(),
+        mitra_repo.clone(),
         jwt_manager.clone(),
         otp_service.clone(),
         config.clone(),
@@ -168,6 +169,9 @@ async fn main() -> std::io::Result<()> {
         let cors = Cors::default()
             .allowed_origin_fn(move |origin, _req_head| {
                 let origin_str = origin.to_str().unwrap_or("");
+                if cors_origins_inner == "*" {
+                    return true;
+                }
                 cors_origins_inner.split(',').any(|o| o.trim() == origin_str)
             })
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])

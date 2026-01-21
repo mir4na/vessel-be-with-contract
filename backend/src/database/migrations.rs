@@ -232,15 +232,15 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
             rejection_reason TEXT,
             reviewed_by UUID REFERENCES users(id),
-            reviewed_at TIMESTAMP,
+            reviewed_at TIMESTAMPTZ,
             address TEXT,
             business_description TEXT,
             website_url VARCHAR(255),
             year_founded INTEGER,
             key_products TEXT,
             export_markets TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
         );"#,
 
         // Risk questionnaires table
@@ -394,6 +394,11 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         r#"ALTER TABLE otp_codes ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE wallet_nonces ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE wallet_nonces ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
+
+        // Fix mitra_applications timestamps
+        r#"ALTER TABLE mitra_applications ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
+        r#"ALTER TABLE mitra_applications ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at AT TIME ZONE 'UTC';"#,
+        r#"ALTER TABLE mitra_applications ALTER COLUMN reviewed_at TYPE TIMESTAMPTZ USING reviewed_at AT TIME ZONE 'UTC';"#,
 
         // Insert default country tiers
         r#"INSERT INTO country_tiers (country_code, country_name, tier, flag_emoji) VALUES

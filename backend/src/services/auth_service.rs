@@ -12,13 +12,14 @@ use crate::models::{
     GoogleAuthRequest, GoogleAuthResponse,
 };
 use crate::config::Config;
-use crate::repository::UserRepository;
+use crate::repository::{UserRepository, MitraRepository};
 use crate::utils::{JwtManager, hash_password, verify_password, generate_random_token};
 
 use super::OtpService;
 
 pub struct AuthService {
     user_repo: Arc<UserRepository>,
+    mitra_repo: Arc<MitraRepository>,
     jwt_manager: Arc<JwtManager>,
     otp_service: Arc<OtpService>,
     config: Arc<Config>,
@@ -29,12 +30,14 @@ pub struct AuthService {
 impl AuthService {
     pub fn new(
         user_repo: Arc<UserRepository>,
+        mitra_repo: Arc<MitraRepository>,
         jwt_manager: Arc<JwtManager>,
         otp_service: Arc<OtpService>,
         config: Arc<Config>,
     ) -> Self {
         Self {
             user_repo,
+            mitra_repo,
             jwt_manager,
             otp_service,
             config,
@@ -190,15 +193,8 @@ impl AuthService {
         })
     }
 
-    /// Traditional registration (for mitra/admin only)
+    /// Traditional registration (for mitra only - investors use wallet login)
     pub async fn register(&self, req: RegisterRequest) -> AppResult<LoginResponse> {
-        // Validate role - only mitra can register with email/password
-        if req.role == "investor" {
-            return Err(AppError::ValidationError(
-                "Investors must use wallet login. Please connect your wallet instead.".to_string()
-            ));
-        }
-
         // Verify OTP token
         let email = self.otp_service.verify_otp_token(&req.otp_token, "registration")
             .map_err(|e| {
@@ -239,10 +235,35 @@ impl AuthService {
         // Hash password
         let password_hash = hash_password(&req.password)?;
 
-        // Create user
-        let user = self.user_repo
-            .create(&req.email, &req.username, &password_hash, &req.role)
+        // Create user with role "mitra" and member_status "calon_anggota_mitra"
+        let mut user = self.user_repo
+            .create(&req.email, &req.username, &password_hash, "mitra")
             .await?;
+
+        // Update member_status to calon_anggota_mitra
+        self.user_repo.update_member_status(user.id, "calon_anggota_mitra").await?;
+        user.member_status = "calon_anggota_mitra".to_string();
+
+        // Set profile_completed = true (mitra doesn't need KYC)
+        self.user_repo.set_profile_completed(user.id, true).await?;
+        user.profile_completed = true;
+
+        // Auto-create mitra application with pending status
+        let _mitra_application = self.mitra_repo.create(
+            user.id,
+            &req.company_name,
+            req.company_type.as_deref().unwrap_or("PT"),
+            &req.npwp,
+            &req.annual_revenue,
+            req.address.as_deref(),
+            req.business_description.as_deref(),
+            req.website_url.as_deref(),
+            req.year_founded,
+            req.key_products.as_deref(),
+            req.export_markets.as_deref(),
+        ).await?;
+
+        tracing::info!("Mitra registered: {} with pending application for company: {}", req.email, req.company_name);
 
         // Generate tokens
         let access_token = self.jwt_manager.generate_access_token(user.id, &user.email, &user.role)?;
