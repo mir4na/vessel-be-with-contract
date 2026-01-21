@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{NaiveDateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -86,8 +86,8 @@ pub struct Transaction {
     /// URL to view transaction on block explorer (e.g., basescan.org)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub explorer_url: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -107,7 +107,7 @@ pub struct BalanceTransaction {
     pub reference_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
 }
 
 #[derive(Debug, Deserialize)]

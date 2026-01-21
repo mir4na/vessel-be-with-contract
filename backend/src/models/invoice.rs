@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{NaiveDate, NaiveDateTime};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -100,8 +100,8 @@ pub struct Invoice {
     pub advance_amount: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub document_hash: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 
     // Grading fields
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -160,7 +160,7 @@ pub struct InvoiceDocument {
     pub file_url: String,
     pub file_hash: String,
     pub file_size: i32,
-    pub uploaded_at: DateTime<Utc>,
+    pub uploaded_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -179,13 +179,13 @@ pub struct InvoiceNft {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub minted_at: Option<DateTime<Utc>>,
+    pub minted_at: Option<NaiveDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub burned_at: Option<DateTime<Utc>>,
+    pub burned_at: Option<NaiveDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub burn_tx_hash: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Deserialize, Validate)]

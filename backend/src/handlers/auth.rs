@@ -15,8 +15,8 @@ pub async fn send_otp(
     state: web::Data<AppState>,
     body: web::Json<SendOtpRequest>,
 ) -> AppResult<HttpResponse> {
-    state.otp_service.send_otp(&body.email, "registration").await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("OTP sent successfully")))
+    let result = state.otp_service.send_otp(&body.email, "registration").await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::success(result, "OTP sent successfully")))
 }
 
 /// POST /api/v1/auth/verify-otp

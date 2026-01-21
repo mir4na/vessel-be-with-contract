@@ -331,7 +331,7 @@ impl FundingService {
                     invoice_number: invoice.invoice_number.clone(),
                     buyer_name: invoice.buyer_name.clone(),
                     buyer_country: invoice.buyer_country.clone(),
-                    due_date: invoice.due_date.and_hms_opt(0, 0, 0).unwrap().and_utc(),
+                    due_date: invoice.due_date.and_hms_opt(0, 0, 0).unwrap(),
                     amount,
                     status: invoice.status.clone(),
                     status_color: if days_until_due > 14 { "green" } else if days_until_due > 0 { "yellow" } else { "red" }.to_string(),

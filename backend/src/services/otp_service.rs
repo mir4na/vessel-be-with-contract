@@ -40,6 +40,9 @@ impl OtpService {
         // Generate OTP
         let code = generate_otp();
         let expires_at = Utc::now() + Duration::minutes(self.config.otp_expiry_minutes);
+        
+        // Log OTP for development/debugging
+        tracing::info!("Generated OTP for {}: {}", email, code);
 
         // Delete any existing OTPs for this email and purpose
         self.otp_repo.delete_by_email(email, purpose).await?;
@@ -98,6 +101,7 @@ impl OtpService {
             return Err(AppError::ValidationError("Maximum attempts exceeded. Please request a new OTP.".to_string()));
         }
 
+        // Check if expired
         // Check if expired
         if otp.expires_at < Utc::now() {
             return Err(AppError::ValidationError("OTP has expired. Please request a new OTP.".to_string()));

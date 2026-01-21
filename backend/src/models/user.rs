@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -73,8 +73,8 @@ pub struct User {
     pub profile_completed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wallet_address: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
     #[sqlx(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<UserProfile>,
@@ -97,8 +97,8 @@ pub struct UserProfile {
     pub business_sector: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -193,10 +193,10 @@ pub struct BankAccount {
     pub account_name: String,
     pub is_verified: bool,
     pub is_primary: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub verified_at: Option<DateTime<Utc>>,
+    pub verified_at: Option<NaiveDateTime>,
 }
 
 pub const BANK_ACCOUNT_MICROCOPY: &str = "Rekening ini akan menjadi satu-satunya tujuan pencairan dana demi keamanan. Kamu bisa mengubahnya nanti di bagian profile.";
@@ -231,9 +231,9 @@ pub struct UserIdentity {
     pub selfie_url: Option<String>,
     pub is_verified: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub verified_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub verified_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 impl UserIdentity {

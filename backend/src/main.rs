@@ -175,8 +175,26 @@ async fn main() -> std::io::Result<()> {
             .supports_credentials()
             .max_age(3600);
 
+        // Custom JSON error handler
+        let json_cfg = web::JsonConfig::default()
+            .error_handler(|err, _req| {
+                let message = format!("{}", err);
+                actix_web::error::InternalError::from_response(
+                    err,
+                    actix_web::HttpResponse::BadRequest().json(serde_json::json!({
+                        "success": false,
+                        "error": {
+                            "code": "VALIDATION_ERROR",
+                            "message": message
+                        }
+                    })),
+                )
+                .into()
+            });
+
         App::new()
             .app_data(app_state.clone())
+            .app_data(json_cfg)
             .wrap(Logger::default())
             .wrap(cors)
             // Health check

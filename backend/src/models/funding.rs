@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -69,17 +69,17 @@ pub struct FundingPool {
     pub investor_count: i32,
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub opened_at: Option<DateTime<Utc>>,
+    pub opened_at: Option<NaiveDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deadline: Option<DateTime<Utc>>,
+    pub deadline: Option<NaiveDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub filled_at: Option<DateTime<Utc>>,
+    pub filled_at: Option<NaiveDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disbursed_at: Option<DateTime<Utc>>,
+    pub disbursed_at: Option<NaiveDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub closed_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub closed_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 
     // Tranche fields
     pub priority_target: Decimal,
@@ -133,11 +133,11 @@ pub struct Investment {
     pub tx_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub return_tx_hash: Option<String>,
-    pub invested_at: DateTime<Utc>,
+    pub invested_at: NaiveDateTime,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub repaid_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub repaid_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 
     // Relations
     #[sqlx(skip)]
@@ -288,12 +288,12 @@ pub struct InvestorActiveInvestment {
     pub interest_rate: f64,
     pub estimated_return: f64,
     pub total_expected: f64,
-    pub due_date: DateTime<Utc>,
+    pub due_date: NaiveDateTime,
     pub days_remaining: i32,
     pub status: String,
     pub status_display: String,
     pub status_color: String,
-    pub invested_at: DateTime<Utc>,
+    pub invested_at: NaiveDateTime,
 }
 
 #[derive(Debug, Serialize)]
@@ -329,7 +329,7 @@ pub struct InvoiceDashboard {
     pub invoice_number: String,
     pub buyer_name: String,
     pub buyer_country: String,
-    pub due_date: DateTime<Utc>,
+    pub due_date: NaiveDateTime,
     pub amount: f64,
     pub status: String,
     pub status_color: String,
@@ -419,7 +419,7 @@ pub struct RepaymentBreakdown {
     pub priority_repayment: f64,
     pub catalyst_repayment: f64,
     pub platform_fee: f64,
-    pub due_date: DateTime<Utc>,
+    pub due_date: NaiveDateTime,
     pub investors: Vec<InvestorRepayment>,
 }
 

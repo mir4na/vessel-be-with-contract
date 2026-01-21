@@ -200,30 +200,39 @@ impl AuthService {
         }
 
         // Verify OTP token
-        let email = self.otp_service.verify_otp_token(&req.otp_token, "registration")?;
+        let email = self.otp_service.verify_otp_token(&req.otp_token, "registration")
+            .map_err(|e| {
+                tracing::warn!("Registration failed: Invalid OTP token: {}", e);
+                e
+            })?;
 
         // Check if email matches
         if email.to_lowercase() != req.email.to_lowercase() {
+            tracing::warn!("Registration failed: Email mismatch (token: {}, req: {})", email, req.email);
             return Err(AppError::ValidationError("OTP token does not match email".to_string()));
         }
 
         // Check if email already exists
         if self.user_repo.find_by_email(&req.email).await?.is_some() {
+            tracing::warn!("Registration failed: Email already registered: {}", req.email);
             return Err(AppError::Conflict("Email already registered".to_string()));
         }
 
         // Check if username already exists
         if self.user_repo.find_by_username(&req.username).await?.is_some() {
+            tracing::warn!("Registration failed: Username already taken: {}", req.username);
             return Err(AppError::Conflict("Username already taken".to_string()));
         }
 
         // Validate password confirmation
         if req.password != req.confirm_password {
+            tracing::warn!("Registration failed: Passwords do not match for {}", req.email);
             return Err(AppError::ValidationError("Passwords do not match".to_string()));
         }
 
         // Validate cooperative agreement
         if !req.cooperative_agreement {
+            tracing::warn!("Registration failed: Cooperative agreement not accepted by {}", req.email);
             return Err(AppError::ValidationError("Must accept cooperative agreement".to_string()));
         }
 

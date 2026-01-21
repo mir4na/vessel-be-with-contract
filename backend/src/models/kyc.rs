@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -66,9 +66,9 @@ pub struct KycVerification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verified_by: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub verified_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub verified_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -85,8 +85,8 @@ pub struct KycStatusResponse {
     pub status: String,
     pub verification_type: Option<String>,
     pub rejection_reason: Option<String>,
-    pub verified_at: Option<DateTime<Utc>>,
-    pub submitted_at: Option<DateTime<Utc>>,
+    pub verified_at: Option<NaiveDateTime>,
+    pub submitted_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Deserialize)]
