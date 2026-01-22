@@ -1,13 +1,13 @@
 pub mod auth;
-pub mod user;
-pub mod invoice;
-pub mod funding;
-pub mod payment;
-pub mod mitra;
-pub mod currency;
-pub mod risk_questionnaire;
-pub mod importer;
 pub mod blockchain;
+pub mod currency;
+pub mod funding;
+pub mod importer;
+pub mod invoice;
+pub mod mitra;
+pub mod payment;
+pub mod risk_questionnaire;
+pub mod user;
 
 use actix_web::HttpResponse;
 use sqlx::PgPool;
@@ -28,7 +28,6 @@ pub struct AppState {
 
     // Repositories
     pub user_repo: Arc<UserRepository>,
-    pub kyc_repo: Arc<KycRepository>,
     pub invoice_repo: Arc<InvoiceRepository>,
     pub funding_repo: Arc<FundingRepository>,
     pub tx_repo: Arc<TransactionRepository>,

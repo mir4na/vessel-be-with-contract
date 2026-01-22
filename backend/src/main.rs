@@ -59,14 +59,16 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize repositories
     let user_repo = Arc::new(repository::UserRepository::new(db_pool.clone()));
-    let kyc_repo = Arc::new(repository::KycRepository::new(db_pool.clone()));
     let invoice_repo = Arc::new(repository::InvoiceRepository::new(db_pool.clone()));
     let funding_repo = Arc::new(repository::FundingRepository::new(db_pool.clone()));
     let tx_repo = Arc::new(repository::TransactionRepository::new(db_pool.clone()));
     let otp_repo = Arc::new(repository::OtpRepository::new(db_pool.clone()));
     let mitra_repo = Arc::new(repository::MitraRepository::new(db_pool.clone()));
-    let importer_payment_repo = Arc::new(repository::ImporterPaymentRepository::new(db_pool.clone()));
-    let rq_repo = Arc::new(repository::RiskQuestionnaireRepository::new(db_pool.clone()));
+    let importer_payment_repo =
+        Arc::new(repository::ImporterPaymentRepository::new(db_pool.clone()));
+    let rq_repo = Arc::new(repository::RiskQuestionnaireRepository::new(
+        db_pool.clone(),
+    ));
 
     // Initialize JWT Manager
     let jwt_manager = Arc::new(utils::JwtManager::new(
@@ -79,9 +81,14 @@ async fn main() -> std::io::Result<()> {
     let pinata_service = Arc::new(services::PinataService::new(config.clone()));
     let email_service = Arc::new(services::EmailService::new(config.clone()));
     let blockchain_service = Arc::new(
-        services::BlockchainService::new(config.clone(), invoice_repo.clone(), funding_repo.clone(), pinata_service.clone())
-            .await
-            .expect("Failed to initialize blockchain service"),
+        services::BlockchainService::new(
+            config.clone(),
+            invoice_repo.clone(),
+            funding_repo.clone(),
+            pinata_service.clone(),
+        )
+        .await
+        .expect("Failed to initialize blockchain service"),
     );
     let escrow_service = Arc::new(services::EscrowService::new());
     let otp_service = Arc::new(services::OtpService::new(
@@ -139,7 +146,6 @@ async fn main() -> std::io::Result<()> {
         redis_pool,
         jwt_manager: jwt_manager.clone(),
         user_repo: user_repo.clone(),
-        kyc_repo,
         invoice_repo,
         funding_repo: funding_repo.clone(),
         tx_repo: tx_repo.clone(),
@@ -172,7 +178,9 @@ async fn main() -> std::io::Result<()> {
                 if cors_origins_inner == "*" {
                     return true;
                 }
-                cors_origins_inner.split(',').any(|o| o.trim() == origin_str)
+                cors_origins_inner
+                    .split(',')
+                    .any(|o| o.trim() == origin_str)
             })
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
             .allowed_headers(vec!["Authorization", "Content-Type", "Accept"])
@@ -180,21 +188,20 @@ async fn main() -> std::io::Result<()> {
             .max_age(3600);
 
         // Custom JSON error handler
-        let json_cfg = web::JsonConfig::default()
-            .error_handler(|err, _req| {
-                let message = format!("{}", err);
-                actix_web::error::InternalError::from_response(
-                    err,
-                    actix_web::HttpResponse::BadRequest().json(serde_json::json!({
-                        "success": false,
-                        "error": {
-                            "code": "VALIDATION_ERROR",
-                            "message": message
-                        }
-                    })),
-                )
-                .into()
-            });
+        let json_cfg = web::JsonConfig::default().error_handler(|err, _req| {
+            let message = format!("{}", err);
+            actix_web::error::InternalError::from_response(
+                err,
+                actix_web::HttpResponse::BadRequest().json(serde_json::json!({
+                    "success": false,
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": message
+                    }
+                })),
+            )
+            .into()
+        });
 
         App::new()
             .app_data(app_state.clone())
@@ -218,15 +225,30 @@ async fn main() -> std::io::Result<()> {
                             // Google OAuth (for mitra/admin - skips OTP)
                             .route("/google", web::post().to(handlers::auth::google_auth))
                             // Wallet auth (for investors)
-                            .route("/wallet/nonce", web::post().to(handlers::auth::get_wallet_nonce))
-                            .route("/wallet/login", web::post().to(handlers::auth::wallet_login))
-                            .route("/wallet/register", web::post().to(handlers::auth::wallet_register)),
+                            .route(
+                                "/wallet/nonce",
+                                web::post().to(handlers::auth::get_wallet_nonce),
+                            )
+                            .route(
+                                "/wallet/login",
+                                web::post().to(handlers::auth::wallet_login),
+                            )
+                            .route(
+                                "/wallet/register",
+                                web::post().to(handlers::auth::wallet_register),
+                            ),
                     )
                     // Public routes (for importers)
                     .service(
                         web::scope("/public")
-                            .route("/payments/{payment_id}", web::get().to(handlers::importer::get_payment_info))
-                            .route("/payments/{payment_id}/pay", web::post().to(handlers::importer::pay)),
+                            .route(
+                                "/payments/{payment_id}",
+                                web::get().to(handlers::importer::get_payment_info),
+                            )
+                            .route(
+                                "/payments/{payment_id}/pay",
+                                web::post().to(handlers::importer::pay),
+                            ),
                     )
                     // Protected routes
                     .service(
@@ -236,56 +258,114 @@ async fn main() -> std::io::Result<()> {
                             .service(
                                 web::scope("/user")
                                     .route("/profile", web::get().to(handlers::user::get_profile))
-                                    .route("/profile", web::put().to(handlers::user::update_profile))
-                                    .route("/kyc", web::post().to(handlers::user::submit_kyc))
-                                    .route("/kyc", web::get().to(handlers::user::get_kyc_status))
-                                    .route("/complete-profile", web::post().to(handlers::user::complete_profile))
-                                    .route("/documents", web::post().to(handlers::user::upload_document))
-                                    .route("/balance", web::get().to(handlers::payment::get_balance))
-                                    .route("/profile/data", web::get().to(handlers::user::get_personal_data))
-                                    .route("/profile/bank-account", web::get().to(handlers::user::get_bank_account))
-                                    .route("/profile/bank-account", web::put().to(handlers::user::change_bank_account))
-                                    .route("/profile/password", web::put().to(handlers::user::change_password))
-                                    .route("/profile/banks", web::get().to(handlers::user::get_supported_banks_handler))
+                                    .route(
+                                        "/profile",
+                                        web::put().to(handlers::user::update_profile),
+                                    )
+                                    .route(
+                                        "/complete-profile",
+                                        web::post().to(handlers::user::complete_profile),
+                                    )
+                                    .route(
+                                        "/documents",
+                                        web::post().to(handlers::user::upload_document),
+                                    )
+                                    .route(
+                                        "/balance",
+                                        web::get().to(handlers::payment::get_balance),
+                                    )
+                                    .route(
+                                        "/profile/data",
+                                        web::get().to(handlers::user::get_personal_data),
+                                    )
+                                    .route(
+                                        "/profile/password",
+                                        web::put().to(handlers::user::change_password),
+                                    )
                                     .route("/wallet", web::put().to(handlers::user::update_wallet))
                                     // Mitra application routes
                                     .service(
                                         web::scope("/mitra")
                                             .route("/apply", web::post().to(handlers::mitra::apply))
-                                            .route("/status", web::get().to(handlers::mitra::get_status))
-                                            .route("/documents", web::post().to(handlers::mitra::upload_document)),
+                                            .route(
+                                                "/status",
+                                                web::get().to(handlers::mitra::get_status),
+                                            )
+                                            .route(
+                                                "/documents",
+                                                web::post().to(handlers::mitra::upload_document),
+                                            ),
                                     ),
                             )
                             // Currency routes
                             .service(
                                 web::scope("/currency")
-                                    .route("/convert", web::post().to(handlers::currency::get_locked_exchange_rate))
-                                    .route("/supported", web::get().to(handlers::currency::get_supported_currencies))
-                                    .route("/disbursement-estimate", web::get().to(handlers::currency::calculate_estimated_disbursement)),
+                                    .route(
+                                        "/convert",
+                                        web::post()
+                                            .to(handlers::currency::get_locked_exchange_rate),
+                                    )
+                                    .route(
+                                        "/supported",
+                                        web::get().to(handlers::currency::get_supported_currencies),
+                                    )
+                                    .route(
+                                        "/disbursement-estimate",
+                                        web::get().to(
+                                            handlers::currency::calculate_estimated_disbursement,
+                                        ),
+                                    ),
                             )
                             // Payment routes
                             .service(
                                 web::scope("/payments")
                                     .route("/deposit", web::post().to(handlers::payment::deposit))
                                     .route("/withdraw", web::post().to(handlers::payment::withdraw))
-                                    .route("/balance", web::get().to(handlers::payment::get_balance)),
+                                    .route(
+                                        "/balance",
+                                        web::get().to(handlers::payment::get_balance),
+                                    ),
                             )
                             // Invoice routes
                             .service(
                                 web::scope("/invoices")
                                     .route("", web::post().to(handlers::invoice::create))
-                                    .route("/funding-request", web::post().to(handlers::invoice::create_funding_request))
-                                    .route("/check-repeat-buyer", web::post().to(handlers::invoice::check_repeat_buyer))
+                                    .route(
+                                        "/funding-request",
+                                        web::post().to(handlers::invoice::create_funding_request),
+                                    )
+                                    .route(
+                                        "/check-repeat-buyer",
+                                        web::post().to(handlers::invoice::check_repeat_buyer),
+                                    )
                                     .route("", web::get().to(handlers::invoice::list))
-                                    .route("/fundable", web::get().to(handlers::invoice::list_fundable))
+                                    .route(
+                                        "/fundable",
+                                        web::get().to(handlers::invoice::list_fundable),
+                                    )
                                     .route("/{id}", web::get().to(handlers::invoice::get))
                                     .route("/{id}", web::put().to(handlers::invoice::update))
                                     .route("/{id}", web::delete().to(handlers::invoice::delete))
-                                    .route("/{id}/submit", web::post().to(handlers::invoice::submit))
-                                    .route("/{id}/documents", web::post().to(handlers::invoice::upload_document))
-                                    .route("/{id}/documents", web::get().to(handlers::invoice::get_documents))
-                                    .route("/{id}/tokenize", web::post().to(handlers::invoice::tokenize))
-                                    .route("/{id}/pool", web::post().to(handlers::funding::create_pool)),
+                                    .route(
+                                        "/{id}/submit",
+                                        web::post().to(handlers::invoice::submit),
+                                    )
+                                    .route(
+                                        "/{id}/documents",
+                                        web::post().to(handlers::invoice::upload_document),
+                                    )
+                                    .route(
+                                        "/{id}/documents",
+                                        web::get().to(handlers::invoice::get_documents),
+                                    )
+                                    .route(
+                                        "/{id}/tokenize",
+                                        web::post().to(handlers::invoice::tokenize),
+                                    )
+                                    .route(
+                                        "/{id}/pool",
+                                        web::post().to(handlers::funding::create_pool),
+                                    ),
                             )
                             // Pool routes
                             .service(
@@ -297,76 +377,174 @@ async fn main() -> std::io::Result<()> {
                             .service(
                                 web::scope("/marketplace")
                                     .route("", web::get().to(handlers::funding::get_marketplace))
-                                    .route("/{id}/detail", web::get().to(handlers::funding::get_pool_detail))
-                                    .route("/calculate", web::post().to(handlers::funding::calculate_investment)),
+                                    .route(
+                                        "/{id}/detail",
+                                        web::get().to(handlers::funding::get_pool_detail),
+                                    )
+                                    .route(
+                                        "/calculate",
+                                        web::post().to(handlers::funding::calculate_investment),
+                                    ),
                             )
                             // Risk questionnaire routes
                             .service(
                                 web::scope("/risk-questionnaire")
-                                    .route("/questions", web::get().to(handlers::risk_questionnaire::get_questions))
+                                    .route(
+                                        "/questions",
+                                        web::get().to(handlers::risk_questionnaire::get_questions),
+                                    )
                                     .route("", web::post().to(handlers::risk_questionnaire::submit))
-                                    .route("/status", web::get().to(handlers::risk_questionnaire::get_status)),
+                                    .route(
+                                        "/status",
+                                        web::get().to(handlers::risk_questionnaire::get_status),
+                                    ),
                             )
                             // Investment routes
                             .service(
                                 web::scope("/investments")
                                     .route("", web::post().to(handlers::funding::invest))
-                                    .route("/confirm", web::post().to(handlers::funding::confirm_investment))
+                                    .route(
+                                        "/confirm",
+                                        web::post().to(handlers::funding::confirm_investment),
+                                    )
                                     .route("", web::get().to(handlers::funding::get_my_investments))
-                                    .route("/portfolio", web::get().to(handlers::funding::get_portfolio))
-                                    .route("/active", web::get().to(handlers::funding::get_active_investments)),
+                                    .route(
+                                        "/portfolio",
+                                        web::get().to(handlers::funding::get_portfolio),
+                                    )
+                                    .route(
+                                        "/active",
+                                        web::get().to(handlers::funding::get_active_investments),
+                                    ),
                             )
                             // Exporter routes
-                            .service(
-                                web::scope("/exporter")
-                                    .route("/disbursement", web::post().to(handlers::funding::exporter_disbursement)),
-                            )
+                            .service(web::scope("/exporter").route(
+                                "/disbursement",
+                                web::post().to(handlers::funding::exporter_disbursement),
+                            ))
                             // Mitra dashboard routes
                             .service(
                                 web::scope("/mitra")
-                                    .route("/dashboard", web::get().to(handlers::funding::get_mitra_dashboard))
-                                    .route("/invoices", web::get().to(handlers::funding::get_mitra_active_invoices))
-                                    .route("/invoices/active", web::get().to(handlers::mitra::get_active_invoices))
-                                    .route("/pools/{id}/breakdown", web::get().to(handlers::mitra::get_repayment_breakdown))
-                                    .route("/payment-methods", web::get().to(handlers::mitra::get_va_payment_methods))
-                                    .route("/repayment/va", web::post().to(handlers::mitra::create_va_payment))
-                                    .route("/repayment/va/{id}", web::get().to(handlers::mitra::get_va_payment_status))
-                                    .route("/repayment/va/{id}/simulate-pay", web::post().to(handlers::mitra::simulate_va_payment)),
+                                    .route(
+                                        "/dashboard",
+                                        web::get().to(handlers::funding::get_mitra_dashboard),
+                                    )
+                                    .route(
+                                        "/invoices",
+                                        web::get().to(handlers::funding::get_mitra_active_invoices),
+                                    )
+                                    .route(
+                                        "/invoices/active",
+                                        web::get().to(handlers::mitra::get_active_invoices),
+                                    )
+                                    .route(
+                                        "/pools/{id}/breakdown",
+                                        web::get().to(handlers::mitra::get_repayment_breakdown),
+                                    ),
                             )
                             // Admin routes
                             .service(
                                 web::scope("/admin")
                                     .wrap(middleware::AdminOnlyMiddleware)
                                     .route("/users", web::get().to(handlers::user::list_users))
-                                    .route("/invoices/pending", web::get().to(handlers::invoice::get_pending_invoices))
-                                    .route("/invoices/approved", web::get().to(handlers::invoice::get_approved_invoices))
-                                    .route("/invoices/{id}/grade-suggestion", web::get().to(handlers::invoice::get_grade_suggestion))
-                                    .route("/invoices/{id}/review", web::get().to(handlers::invoice::get_invoice_review_data))
-                                    .route("/invoices/{id}/approve", web::post().to(handlers::invoice::approve))
-                                    .route("/invoices/{id}/reject", web::post().to(handlers::invoice::reject))
-                                    .route("/pools/{id}/disburse", web::post().to(handlers::funding::disburse))
-                                    .route("/pools/{id}/close", web::post().to(handlers::funding::close_pool_and_notify))
-                                    .route("/invoices/{id}/repay", web::post().to(handlers::funding::process_repayment))
-                                    .route("/mitra/pending", web::get().to(handlers::mitra::get_pending_applications))
-                                    .route("/mitra/{id}", web::get().to(handlers::mitra::get_application))
-                                    .route("/mitra/{id}/approve", web::post().to(handlers::mitra::approve))
-                                    .route("/mitra/{id}/reject", web::post().to(handlers::mitra::reject))
-                                    .route("/balance/grant", web::post().to(handlers::payment::admin_grant_balance))
-                                    .route("/platform/revenue", web::get().to(handlers::payment::get_platform_revenue)),
+                                    .route(
+                                        "/invoices/pending",
+                                        web::get().to(handlers::invoice::get_pending_invoices),
+                                    )
+                                    .route(
+                                        "/invoices/approved",
+                                        web::get().to(handlers::invoice::get_approved_invoices),
+                                    )
+                                    .route(
+                                        "/invoices/{id}/grade-suggestion",
+                                        web::get().to(handlers::invoice::get_grade_suggestion),
+                                    )
+                                    .route(
+                                        "/invoices/{id}/review",
+                                        web::get().to(handlers::invoice::get_invoice_review_data),
+                                    )
+                                    .route(
+                                        "/invoices/{id}/approve",
+                                        web::post().to(handlers::invoice::approve),
+                                    )
+                                    .route(
+                                        "/invoices/{id}/reject",
+                                        web::post().to(handlers::invoice::reject),
+                                    )
+                                    .route(
+                                        "/pools/{id}/disburse",
+                                        web::post().to(handlers::funding::disburse),
+                                    )
+                                    .route(
+                                        "/pools/{id}/close",
+                                        web::post().to(handlers::funding::close_pool_and_notify),
+                                    )
+                                    .route(
+                                        "/invoices/{id}/repay",
+                                        web::post().to(handlers::funding::process_repayment),
+                                    )
+                                    .route(
+                                        "/mitra/pending",
+                                        web::get().to(handlers::mitra::get_pending_applications),
+                                    )
+                                    .route(
+                                        "/mitra/all",
+                                        web::get().to(handlers::mitra::get_all_applications),
+                                    )
+                                    .route(
+                                        "/mitra/{id}",
+                                        web::get().to(handlers::mitra::get_application),
+                                    )
+                                    .route(
+                                        "/mitra/{id}/approve",
+                                        web::post().to(handlers::mitra::approve),
+                                    )
+                                    .route(
+                                        "/mitra/{id}/reject",
+                                        web::post().to(handlers::mitra::reject),
+                                    )
+                                    .route(
+                                        "/platform/revenue",
+                                        web::get().to(handlers::payment::get_platform_revenue),
+                                    ),
                             )
                             // Blockchain transparency routes (on-chain verification)
                             .service(
                                 web::scope("/blockchain")
                                     // Public transparency endpoints (no auth needed for verification)
-                                    .route("/chain-info", web::get().to(handlers::blockchain::get_chain_info))
-                                    .route("/balance/{address}", web::get().to(handlers::blockchain::get_idrx_balance))
-                                    .route("/platform-balance", web::get().to(handlers::blockchain::get_platform_balance))
-                                    .route("/verify/{tx_hash}", web::get().to(handlers::blockchain::verify_transaction))
-                                    .route("/transfers/{address}", web::get().to(handlers::blockchain::get_transfer_history))
-                                    .route("/pools/{id}/transactions", web::get().to(handlers::blockchain::get_pool_transactions))
+                                    .route(
+                                        "/chain-info",
+                                        web::get().to(handlers::blockchain::get_chain_info),
+                                    )
+                                    .route(
+                                        "/balance/{address}",
+                                        web::get().to(handlers::blockchain::get_idrx_balance),
+                                    )
+                                    .route(
+                                        "/platform-balance",
+                                        web::get().to(handlers::blockchain::get_platform_balance),
+                                    )
+                                    .route(
+                                        "/verify/{tx_hash}",
+                                        web::get().to(handlers::blockchain::verify_transaction),
+                                    )
+                                    .route(
+                                        "/transfers/{address}",
+                                        web::get().to(handlers::blockchain::get_transfer_history),
+                                    )
+                                    .route(
+                                        "/pools/{id}/transactions",
+                                        web::get().to(handlers::blockchain::get_pool_transactions),
+                                    )
                                     // Authenticated endpoints
-                                    .route("/my-transactions", web::get().to(handlers::blockchain::get_my_transactions))
-                                    .route("/my-idrx-balance", web::get().to(handlers::blockchain::get_my_idrx_balance)),
+                                    .route(
+                                        "/my-transactions",
+                                        web::get().to(handlers::blockchain::get_my_transactions),
+                                    )
+                                    .route(
+                                        "/my-idrx-balance",
+                                        web::get().to(handlers::blockchain::get_my_idrx_balance),
+                                    ),
                             ),
                     ),
             )

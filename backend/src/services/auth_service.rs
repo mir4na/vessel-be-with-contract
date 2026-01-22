@@ -1,19 +1,18 @@
-use std::sync::Arc;
-use std::collections::HashMap;
-use tokio::sync::RwLock;
-use uuid::Uuid;
 use ethers::types::{Address, Signature};
 use ethers::utils::hash_message;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
+use crate::config::Config;
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    User, RegisterRequest, LoginRequest, LoginResponse,
-    WalletLoginRequest, WalletNonceResponse, InvestorWalletRegisterRequest,
-    GoogleAuthRequest, GoogleAuthResponse,
+    GoogleAuthRequest, GoogleAuthResponse, InvestorWalletRegisterRequest, LoginRequest,
+    LoginResponse, RegisterRequest, User, WalletLoginRequest, WalletNonceResponse,
 };
-use crate::config::Config;
-use crate::repository::{UserRepository, MitraRepository};
-use crate::utils::{JwtManager, hash_password, verify_password, generate_random_token};
+use crate::repository::{MitraRepository, UserRepository};
+use crate::utils::{generate_random_token, hash_password, verify_password, JwtManager};
 
 use super::OtpService;
 
@@ -64,20 +63,28 @@ impl AuthService {
     }
 
     /// Verify wallet signature
-    fn verify_wallet_signature(&self, wallet_address: &str, signature: &str, message: &str) -> AppResult<bool> {
+    fn verify_wallet_signature(
+        &self,
+        wallet_address: &str,
+        signature: &str,
+        message: &str,
+    ) -> AppResult<bool> {
         // Parse wallet address
-        let address: Address = wallet_address.parse()
+        let address: Address = wallet_address
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid wallet address".to_string()))?;
 
         // Parse signature
-        let sig: Signature = signature.parse()
+        let sig: Signature = signature
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid signature format".to_string()))?;
 
         // Hash the message (EIP-191 personal sign)
         let message_hash = hash_message(message);
 
         // Recover the signer address
-        let recovered = sig.recover(message_hash)
+        let recovered = sig
+            .recover(message_hash)
             .map_err(|_| AppError::ValidationError("Failed to recover signer".to_string()))?;
 
         Ok(recovered == address)
@@ -90,7 +97,8 @@ impl AuthService {
         // Verify nonce
         {
             let nonces = self.wallet_nonces.read().await;
-            let stored_nonce = nonces.get(&wallet)
+            let stored_nonce = nonces
+                .get(&wallet)
                 .ok_or_else(|| AppError::ValidationError("Invalid or expired nonce".to_string()))?;
 
             if stored_nonce != &req.nonce {
@@ -131,8 +139,12 @@ impl AuthService {
         }
 
         // Generate tokens
-        let access_token = self.jwt_manager.generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token = self.jwt_manager.generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token =
+            self.jwt_manager
+                .generate_access_token(user.id, &user.email, &user.role)?;
+        let refresh_token =
+            self.jwt_manager
+                .generate_refresh_token(user.id, &user.email, &user.role)?;
 
         Ok(LoginResponse {
             user,
@@ -143,18 +155,24 @@ impl AuthService {
     }
 
     /// Register investor with wallet only
-    pub async fn register_investor_wallet(&self, req: InvestorWalletRegisterRequest) -> AppResult<LoginResponse> {
+    pub async fn register_investor_wallet(
+        &self,
+        req: InvestorWalletRegisterRequest,
+    ) -> AppResult<LoginResponse> {
         let wallet = req.wallet_address.to_lowercase();
 
         // Verify cooperative agreement
         if !req.cooperative_agreement {
-            return Err(AppError::ValidationError("Must accept cooperative agreement".to_string()));
+            return Err(AppError::ValidationError(
+                "Must accept cooperative agreement".to_string(),
+            ));
         }
 
         // Verify nonce
         {
             let nonces = self.wallet_nonces.read().await;
-            let stored_nonce = nonces.get(&wallet)
+            let stored_nonce = nonces
+                .get(&wallet)
                 .ok_or_else(|| AppError::ValidationError("Invalid or expired nonce".to_string()))?;
 
             if stored_nonce != &req.nonce {
@@ -182,8 +200,12 @@ impl AuthService {
         let user = self.user_repo.create_investor_with_wallet(&wallet).await?;
 
         // Generate tokens
-        let access_token = self.jwt_manager.generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token = self.jwt_manager.generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token =
+            self.jwt_manager
+                .generate_access_token(user.id, &user.email, &user.role)?;
+        let refresh_token =
+            self.jwt_manager
+                .generate_refresh_token(user.id, &user.email, &user.role)?;
 
         Ok(LoginResponse {
             user,
@@ -196,7 +218,9 @@ impl AuthService {
     /// Traditional registration (for mitra only - investors use wallet login)
     pub async fn register(&self, req: RegisterRequest) -> AppResult<LoginResponse> {
         // Verify OTP token
-        let email = self.otp_service.verify_otp_token(&req.otp_token, "registration")
+        let email = self
+            .otp_service
+            .verify_otp_token(&req.otp_token, "registration")
             .map_err(|e| {
                 tracing::warn!("Registration failed: Invalid OTP token: {}", e);
                 e
@@ -204,80 +228,133 @@ impl AuthService {
 
         // Check if email matches
         if email.to_lowercase() != req.email.to_lowercase() {
-            tracing::warn!("Registration failed: Email mismatch (token: {}, req: {})", email, req.email);
-            return Err(AppError::ValidationError("OTP token does not match email".to_string()));
+            tracing::warn!(
+                "Registration failed: Email mismatch (token: {}, req: {})",
+                email,
+                req.email
+            );
+            return Err(AppError::ValidationError(
+                "OTP token does not match email".to_string(),
+            ));
         }
 
         // Check if email already exists
         if self.user_repo.find_by_email(&req.email).await?.is_some() {
-            tracing::warn!("Registration failed: Email already registered: {}", req.email);
+            tracing::warn!(
+                "Registration failed: Email already registered: {}",
+                req.email
+            );
             return Err(AppError::Conflict("Email already registered".to_string()));
         }
 
         // Check if username already exists
-        if self.user_repo.find_by_username(&req.username).await?.is_some() {
-            tracing::warn!("Registration failed: Username already taken: {}", req.username);
+        if self
+            .user_repo
+            .find_by_username(&req.username)
+            .await?
+            .is_some()
+        {
+            tracing::warn!(
+                "Registration failed: Username already taken: {}",
+                req.username
+            );
             return Err(AppError::Conflict("Username already taken".to_string()));
         }
 
         // Validate password confirmation
         if req.password != req.confirm_password {
-            tracing::warn!("Registration failed: Passwords do not match for {}", req.email);
-            return Err(AppError::ValidationError("Passwords do not match".to_string()));
+            tracing::warn!(
+                "Registration failed: Passwords do not match for {}",
+                req.email
+            );
+            return Err(AppError::ValidationError(
+                "Passwords do not match".to_string(),
+            ));
         }
 
         // Validate cooperative agreement
         if !req.cooperative_agreement {
-            tracing::warn!("Registration failed: Cooperative agreement not accepted by {}", req.email);
-            return Err(AppError::ValidationError("Must accept cooperative agreement".to_string()));
+            tracing::warn!(
+                "Registration failed: Cooperative agreement not accepted by {}",
+                req.email
+            );
+            return Err(AppError::ValidationError(
+                "Must accept cooperative agreement".to_string(),
+            ));
         }
 
         // Hash password
         let password_hash = hash_password(&req.password)?;
 
         // Create user with role "mitra" and member_status "calon_anggota_mitra"
-        let mut user = self.user_repo
+        let mut user = self
+            .user_repo
             .create(&req.email, &req.username, &password_hash, "mitra")
             .await?;
 
         // Update member_status to calon_anggota_mitra
-        self.user_repo.update_member_status(user.id, "calon_anggota_mitra").await?;
+        self.user_repo
+            .update_member_status(user.id, "calon_anggota_mitra")
+            .await?;
         user.member_status = "calon_anggota_mitra".to_string();
 
         // Set profile_completed based on whether company details were provided
         // Check if company_name is SOME and NOT EMPTY string
-        let is_profile_complete = req.company_name.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
-        self.user_repo.set_profile_completed(user.id, is_profile_complete).await?;
+        let is_profile_complete = req
+            .company_name
+            .as_ref()
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        self.user_repo
+            .set_profile_completed(user.id, is_profile_complete)
+            .await?;
         user.profile_completed = is_profile_complete;
 
         // Auto-create mitra application with pending status ONLY if company name provided and not empty
         if let Some(company_name) = &req.company_name {
             if !company_name.is_empty() {
-                let _mitra_application = self.mitra_repo.create(
-                    user.id,
-                    company_name,
-                    req.company_type.as_deref().unwrap_or("PT"),
-                    req.npwp.as_deref().unwrap_or(""),
-                    req.annual_revenue.as_deref().unwrap_or(""),
-                    req.address.as_deref(),
-                    req.business_description.as_deref(),
-                    req.website_url.as_deref(),
-                    req.year_founded,
-                    req.key_products.as_deref(),
-                    req.export_markets.as_deref(),
-                ).await?;
-                
-                tracing::info!("Mitra registered: {} with pending application for company: {}", req.email, company_name);
+                let _mitra_application = self
+                    .mitra_repo
+                    .create(
+                        user.id,
+                        company_name,
+                        req.company_type.as_deref().unwrap_or("PT"),
+                        req.npwp.as_deref().unwrap_or(""),
+                        req.annual_revenue.as_deref().unwrap_or(""),
+                        req.address.as_deref(),
+                        req.business_description.as_deref(),
+                        req.website_url.as_deref(),
+                        req.year_founded,
+                        req.key_products.as_deref(),
+                        req.export_markets.as_deref(),
+                    )
+                    .await?;
+
+                tracing::info!(
+                    "Mitra registered: {} with pending application for company: {}",
+                    req.email,
+                    company_name
+                );
             } else {
-                 tracing::info!("Mitra registered: {} (without initial company profile)", req.email);
+                tracing::info!(
+                    "Mitra registered: {} (without initial company profile)",
+                    req.email
+                );
             }
         } else {
-             tracing::info!("Mitra registered: {} (without initial company profile)", req.email);
+            tracing::info!(
+                "Mitra registered: {} (without initial company profile)",
+                req.email
+            );
         }
 
         // Generate tokens
-        let access_token = self.jwt_manager.generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token = self.jwt_manager.generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token =
+            self.jwt_manager
+                .generate_access_token(user.id, &user.email, &user.role)?;
+        let refresh_token =
+            self.jwt_manager
+                .generate_refresh_token(user.id, &user.email, &user.role)?;
 
         Ok(LoginResponse {
             user,
@@ -290,7 +367,8 @@ impl AuthService {
     /// Traditional login (for mitra/admin only)
     pub async fn login(&self, req: LoginRequest) -> AppResult<LoginResponse> {
         // Find user by email or username
-        let user = self.user_repo
+        let user = self
+            .user_repo
             .find_by_email_or_username(&req.email_or_username)
             .await?
             .ok_or(AppError::InvalidCredentials)?;
@@ -298,7 +376,7 @@ impl AuthService {
         // Investors must use wallet login
         if user.role == "investor" {
             return Err(AppError::Forbidden(
-                "Investors must use wallet login. Please connect your wallet instead.".to_string()
+                "Investors must use wallet login. Please connect your wallet instead.".to_string(),
             ));
         }
 
@@ -313,8 +391,12 @@ impl AuthService {
         }
 
         // Generate tokens
-        let access_token = self.jwt_manager.generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token = self.jwt_manager.generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token =
+            self.jwt_manager
+                .generate_access_token(user.id, &user.email, &user.role)?;
+        let refresh_token =
+            self.jwt_manager
+                .generate_refresh_token(user.id, &user.email, &user.role)?;
 
         Ok(LoginResponse {
             user,
@@ -329,18 +411,22 @@ impl AuthService {
         let claims = self.jwt_manager.verify_refresh_token(refresh_token)?;
 
         // Parse user ID
-        let user_id = Uuid::parse_str(&claims.sub)
-            .map_err(|_| AppError::InvalidToken)?;
+        let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::InvalidToken)?;
 
         // Get user
-        let user = self.user_repo
+        let user = self
+            .user_repo
             .find_by_id(user_id)
             .await?
             .ok_or(AppError::InvalidToken)?;
 
         // Generate new tokens
-        let new_access_token = self.jwt_manager.generate_access_token(user.id, &user.email, &user.role)?;
-        let new_refresh_token = self.jwt_manager.generate_refresh_token(user.id, &user.email, &user.role)?;
+        let new_access_token =
+            self.jwt_manager
+                .generate_access_token(user.id, &user.email, &user.role)?;
+        let new_refresh_token =
+            self.jwt_manager
+                .generate_refresh_token(user.id, &user.email, &user.role)?;
 
         Ok((new_access_token, new_refresh_token))
     }
@@ -350,8 +436,13 @@ impl AuthService {
     }
 
     /// Verify OTP and return token (used for email verification)
-    pub async fn verify_otp(&self, req: crate::models::VerifyOtpRequest) -> AppResult<crate::models::VerifyOtpResponse> {
-        self.otp_service.verify_otp(&req.email, &req.code, &req.purpose).await
+    pub async fn verify_otp(
+        &self,
+        req: crate::models::VerifyOtpRequest,
+    ) -> AppResult<crate::models::VerifyOtpResponse> {
+        self.otp_service
+            .verify_otp(&req.email, &req.code, &req.purpose)
+            .await
     }
 
     /// Verify Google ID token and return OTP token (skips email OTP verification)
@@ -365,10 +456,14 @@ impl AuthService {
             ))
             .send()
             .await
-            .map_err(|e| AppError::ValidationError(format!("Failed to verify Google token: {}", e)))?;
+            .map_err(|e| {
+                AppError::ValidationError(format!("Failed to verify Google token: {}", e))
+            })?;
 
         if !google_response.status().is_success() {
-            return Err(AppError::ValidationError("Invalid Google token".to_string()));
+            return Err(AppError::ValidationError(
+                "Invalid Google token".to_string(),
+            ));
         }
 
         #[derive(serde::Deserialize)]
@@ -378,23 +473,30 @@ impl AuthService {
             aud: String,
         }
 
-        let token_info: GoogleTokenInfo = google_response
-            .json()
-            .await
-            .map_err(|e| AppError::ValidationError(format!("Failed to parse Google response: {}", e)))?;
+        let token_info: GoogleTokenInfo = google_response.json().await.map_err(|e| {
+            AppError::ValidationError(format!("Failed to parse Google response: {}", e))
+        })?;
 
         // Verify the token audience matches our client ID
-        if !self.config.google_client_id.is_empty() && token_info.aud != self.config.google_client_id {
-            return Err(AppError::ValidationError("Invalid Google client ID".to_string()));
+        if !self.config.google_client_id.is_empty()
+            && token_info.aud != self.config.google_client_id
+        {
+            return Err(AppError::ValidationError(
+                "Invalid Google client ID".to_string(),
+            ));
         }
 
         // Verify email is verified by Google
         if token_info.email_verified != "true" {
-            return Err(AppError::ValidationError("Google email is not verified".to_string()));
+            return Err(AppError::ValidationError(
+                "Google email is not verified".to_string(),
+            ));
         }
 
         // Generate OTP token directly (skipping email OTP since Google already verified)
-        let otp_token = self.jwt_manager.generate_otp_token(&token_info.email, "registration")?;
+        let otp_token = self
+            .jwt_manager
+            .generate_otp_token(&token_info.email, "registration")?;
 
         Ok(GoogleAuthResponse {
             email: token_info.email,

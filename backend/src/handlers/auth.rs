@@ -1,13 +1,12 @@
 use actix_web::{web, HttpResponse};
 
+use super::AppState;
 use crate::error::AppResult;
 use crate::models::{
-    RegisterRequest, LoginRequest, VerifyOtpRequest, SendOtpRequest,
-    WalletLoginRequest, RefreshTokenRequest, GetNonceRequest, InvestorWalletRegisterRequest,
-    GoogleAuthRequest,
+    GetNonceRequest, GoogleAuthRequest, InvestorWalletRegisterRequest, LoginRequest,
+    RefreshTokenRequest, RegisterRequest, SendOtpRequest, VerifyOtpRequest, WalletLoginRequest,
 };
 use crate::utils::ApiResponse;
-use super::AppState;
 
 /// POST /api/v1/auth/send-otp
 /// For mitra/admin registration - not needed for investors
@@ -15,7 +14,10 @@ pub async fn send_otp(
     state: web::Data<AppState>,
     body: web::Json<SendOtpRequest>,
 ) -> AppResult<HttpResponse> {
-    let result = state.otp_service.send_otp(&body.email, "registration").await?;
+    let result = state
+        .otp_service
+        .send_otp(&body.email, "registration")
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::success(result, "OTP sent successfully")))
 }
 
@@ -55,7 +57,10 @@ pub async fn get_wallet_nonce(
     state: web::Data<AppState>,
     body: web::Json<GetNonceRequest>,
 ) -> AppResult<HttpResponse> {
-    let result = state.auth_service.get_wallet_nonce(&body.wallet_address).await?;
+    let result = state
+        .auth_service
+        .get_wallet_nonce(&body.wallet_address)
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::success(result, "Nonce generated")))
 }
 
@@ -75,8 +80,14 @@ pub async fn wallet_register(
     state: web::Data<AppState>,
     body: web::Json<InvestorWalletRegisterRequest>,
 ) -> AppResult<HttpResponse> {
-    let result = state.auth_service.register_investor_wallet(body.into_inner()).await?;
-    Ok(HttpResponse::Created().json(ApiResponse::success(result, "Investor registered successfully")))
+    let result = state
+        .auth_service
+        .register_investor_wallet(body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(ApiResponse::success(
+        result,
+        "Investor registered successfully",
+    )))
 }
 
 /// POST /api/v1/auth/refresh
@@ -84,13 +95,16 @@ pub async fn refresh_token(
     state: web::Data<AppState>,
     body: web::Json<RefreshTokenRequest>,
 ) -> AppResult<HttpResponse> {
-    let result = state.auth_service.refresh_token(&body.refresh_token).await?;
+    let result = state
+        .auth_service
+        .refresh_token(&body.refresh_token)
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::success(
         serde_json::json!({
             "access_token": result.0,
             "refresh_token": result.1
         }),
-        "Token refreshed successfully"
+        "Token refreshed successfully",
     )))
 }
 
@@ -101,5 +115,8 @@ pub async fn google_auth(
     body: web::Json<GoogleAuthRequest>,
 ) -> AppResult<HttpResponse> {
     let result = state.auth_service.google_auth(body.into_inner()).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::success(result, "Google authentication successful")))
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        result,
+        "Google authentication successful",
+    )))
 }

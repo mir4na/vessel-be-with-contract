@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use reqwest::multipart;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
@@ -45,12 +45,15 @@ impl PinataService {
             .mime_str("application/octet-stream")
             .map_err(|e| AppError::IpfsError(e.to_string()))?;
 
-        let form = multipart::Form::new()
-            .part("file", part);
+        let form = multipart::Form::new().part("file", part);
 
-        let response = self.client
+        let response = self
+            .client
             .post("https://api.pinata.cloud/pinning/pinFileToIPFS")
-            .header("Authorization", format!("Bearer {}", self.config.pinata_jwt))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.pinata_jwt),
+            )
             .multipart(form)
             .send()
             .await
@@ -58,16 +61,24 @@ impl PinataService {
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            return Err(AppError::IpfsError(format!("Pinata upload failed: {}", error_text)));
+            return Err(AppError::IpfsError(format!(
+                "Pinata upload failed: {}",
+                error_text
+            )));
         }
 
-        let result: PinataResponse = response.json().await
+        let result: PinataResponse = response
+            .json()
+            .await
             .map_err(|e| AppError::IpfsError(e.to_string()))?;
 
         let gateway_url = if self.config.pinata_gateway_url.is_empty() {
             format!("https://gateway.pinata.cloud/ipfs/{}", result.ipfs_hash)
         } else {
-            format!("https://{}/ipfs/{}", self.config.pinata_gateway_url, result.ipfs_hash)
+            format!(
+                "https://{}/ipfs/{}",
+                self.config.pinata_gateway_url, result.ipfs_hash
+            )
         };
 
         Ok(gateway_url)
@@ -85,9 +96,13 @@ impl PinataService {
             }
         });
 
-        let response = self.client
+        let response = self
+            .client
             .post("https://api.pinata.cloud/pinning/pinJSONToIPFS")
-            .header("Authorization", format!("Bearer {}", self.config.pinata_jwt))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.pinata_jwt),
+            )
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -96,16 +111,24 @@ impl PinataService {
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            return Err(AppError::IpfsError(format!("Pinata upload failed: {}", error_text)));
+            return Err(AppError::IpfsError(format!(
+                "Pinata upload failed: {}",
+                error_text
+            )));
         }
 
-        let result: PinataResponse = response.json().await
+        let result: PinataResponse = response
+            .json()
+            .await
             .map_err(|e| AppError::IpfsError(e.to_string()))?;
 
         let gateway_url = if self.config.pinata_gateway_url.is_empty() {
             format!("https://gateway.pinata.cloud/ipfs/{}", result.ipfs_hash)
         } else {
-            format!("https://{}/ipfs/{}", self.config.pinata_gateway_url, result.ipfs_hash)
+            format!(
+                "https://{}/ipfs/{}",
+                self.config.pinata_gateway_url, result.ipfs_hash
+            )
         };
 
         Ok(gateway_url)

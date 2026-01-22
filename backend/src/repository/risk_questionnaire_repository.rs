@@ -42,7 +42,7 @@ impl RiskQuestionnaireRepository {
 
     pub async fn find_by_user(&self, user_id: Uuid) -> AppResult<Option<RiskQuestionnaire>> {
         let rq = sqlx::query_as::<_, RiskQuestionnaire>(
-            "SELECT * FROM risk_questionnaires WHERE user_id = $1"
+            "SELECT * FROM risk_questionnaires WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)

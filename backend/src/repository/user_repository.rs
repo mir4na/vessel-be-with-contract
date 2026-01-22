@@ -1,9 +1,9 @@
+use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
-use rust_decimal::Decimal;
 
 use crate::error::AppResult;
-use crate::models::{User, UserProfile, BankAccount, UserIdentity};
+use crate::models::{BankAccount, User, UserIdentity, UserProfile};
 
 #[derive(Clone)]
 pub struct UserRepository {
@@ -15,10 +15,16 @@ impl UserRepository {
         Self { pool }
     }
 
-    pub async fn create(&self, email: &str, username: &str, password_hash: &str, role: &str) -> AppResult<User> {
+    pub async fn create(
+        &self,
+        email: &str,
+        username: &str,
+        password_hash: &str,
+        role: &str,
+    ) -> AppResult<User> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (email, username, password_hash, role, is_verified, is_active, cooperative_agreement, member_status, balance_idr, email_verified, profile_completed)
+            INSERT INTO users (email, username, password_hash, role, is_verified, is_active, cooperative_agreement, member_status, balance_idrx, email_verified, profile_completed)
             VALUES ($1, $2, $3, $4, false, true, false, 'calon_anggota_pendana', 0, true, false)
             RETURNING *
             "#,
@@ -60,13 +66,15 @@ impl UserRepository {
         Ok(user)
     }
 
-    pub async fn find_by_email_or_username(&self, email_or_username: &str) -> AppResult<Option<User>> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE email = $1 OR username = $1"
-        )
-        .bind(email_or_username)
-        .fetch_optional(&self.pool)
-        .await?;
+    pub async fn find_by_email_or_username(
+        &self,
+        email_or_username: &str,
+    ) -> AppResult<Option<User>> {
+        let user =
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1 OR username = $1")
+                .bind(email_or_username)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(user)
     }
@@ -95,7 +103,7 @@ impl UserRepository {
             r#"
             INSERT INTO users (
                 email, username, password_hash, role, is_verified, is_active,
-                cooperative_agreement, member_status, balance_idr, email_verified,
+                cooperative_agreement, member_status, balance_idrx, email_verified,
                 profile_completed, wallet_address
             )
             VALUES ($1, $2, '', 'investor', true, true, true, 'calon_anggota_pendana', 0, false, false, $3)
@@ -121,7 +129,11 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn update_wallet_address(&self, user_id: Uuid, wallet_address: &str) -> AppResult<()> {
+    pub async fn update_wallet_address(
+        &self,
+        user_id: Uuid,
+        wallet_address: &str,
+    ) -> AppResult<()> {
         sqlx::query("UPDATE users SET wallet_address = $1, updated_at = NOW() WHERE id = $2")
             .bind(wallet_address)
             .bind(user_id)
@@ -132,7 +144,7 @@ impl UserRepository {
     }
 
     pub async fn update_balance(&self, user_id: Uuid, new_balance: Decimal) -> AppResult<()> {
-        sqlx::query("UPDATE users SET balance_idr = $1, updated_at = NOW() WHERE id = $2")
+        sqlx::query("UPDATE users SET balance_idrx = $1, updated_at = NOW() WHERE id = $2")
             .bind(new_balance)
             .bind(user_id)
             .execute(&self.pool)
@@ -185,7 +197,7 @@ impl UserRepository {
         let offset = (page - 1) * per_page;
 
         let users = sqlx::query_as::<_, User>(
-            "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+            "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
         )
         .bind(per_page)
         .bind(offset)
@@ -217,12 +229,11 @@ impl UserRepository {
     }
 
     pub async fn find_profile_by_user_id(&self, user_id: Uuid) -> AppResult<Option<UserProfile>> {
-        let profile = sqlx::query_as::<_, UserProfile>(
-            "SELECT * FROM user_profiles WHERE user_id = $1"
-        )
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let profile =
+            sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(profile)
     }
@@ -293,7 +304,7 @@ impl UserRepository {
 
     pub async fn find_primary_bank_account(&self, user_id: Uuid) -> AppResult<Option<BankAccount>> {
         let account = sqlx::query_as::<_, BankAccount>(
-            "SELECT * FROM bank_accounts WHERE user_id = $1 AND is_primary = true"
+            "SELECT * FROM bank_accounts WHERE user_id = $1 AND is_primary = true",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -357,12 +368,11 @@ impl UserRepository {
     }
 
     pub async fn find_identity_by_user_id(&self, user_id: Uuid) -> AppResult<Option<UserIdentity>> {
-        let identity = sqlx::query_as::<_, UserIdentity>(
-            "SELECT * FROM user_identities WHERE user_id = $1"
-        )
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let identity =
+            sqlx::query_as::<_, UserIdentity>("SELECT * FROM user_identities WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(identity)
     }
@@ -394,7 +404,7 @@ impl UserRepository {
 
         let (users, total) = if let Some(role) = role {
             let users = sqlx::query_as::<_, User>(
-                "SELECT * FROM users WHERE role = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+                "SELECT * FROM users WHERE role = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
             )
             .bind(role)
             .bind(per_page)
@@ -410,7 +420,7 @@ impl UserRepository {
             (users, total.0)
         } else {
             let users = sqlx::query_as::<_, User>(
-                "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+                "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
             )
             .bind(per_page)
             .bind(offset)

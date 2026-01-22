@@ -47,19 +47,18 @@ impl ImporterPaymentRepository {
     }
 
     pub async fn find_by_id(&self, id: Uuid) -> AppResult<Option<ImporterPayment>> {
-        let payment = sqlx::query_as::<_, ImporterPayment>(
-            "SELECT * FROM importer_payments WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let payment =
+            sqlx::query_as::<_, ImporterPayment>("SELECT * FROM importer_payments WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(payment)
     }
 
     pub async fn find_by_invoice(&self, invoice_id: Uuid) -> AppResult<Option<ImporterPayment>> {
         let payment = sqlx::query_as::<_, ImporterPayment>(
-            "SELECT * FROM importer_payments WHERE invoice_id = $1"
+            "SELECT * FROM importer_payments WHERE invoice_id = $1",
         )
         .bind(invoice_id)
         .fetch_optional(&self.pool)
@@ -70,7 +69,7 @@ impl ImporterPaymentRepository {
 
     pub async fn find_by_pool(&self, pool_id: Uuid) -> AppResult<Option<ImporterPayment>> {
         let payment = sqlx::query_as::<_, ImporterPayment>(
-            "SELECT * FROM importer_payments WHERE pool_id = $1"
+            "SELECT * FROM importer_payments WHERE pool_id = $1",
         )
         .bind(pool_id)
         .fetch_optional(&self.pool)
@@ -132,7 +131,7 @@ impl ImporterPaymentRepository {
 
     pub async fn find_pending_overdue(&self) -> AppResult<Vec<ImporterPayment>> {
         let payments = sqlx::query_as::<_, ImporterPayment>(
-            "SELECT * FROM importer_payments WHERE payment_status = 'pending' AND due_date < NOW()"
+            "SELECT * FROM importer_payments WHERE payment_status = 'pending' AND due_date < NOW()",
         )
         .fetch_all(&self.pool)
         .await?;

@@ -1,5 +1,5 @@
-use std::env;
 use anyhow::{Context, Result};
+use std::env;
 
 /// Application configuration loaded from environment variables
 #[derive(Debug, Clone)]
@@ -103,28 +103,39 @@ impl Config {
             // Database
             database_url,
             postgres_host: get_env_or_default("POSTGRES_HOST", "localhost"),
-            postgres_port: get_env_or_default("POSTGRES_PORT", "5432").parse().unwrap_or(5432),
+            postgres_port: get_env_or_default("POSTGRES_PORT", "5432")
+                .parse()
+                .unwrap_or(5432),
             postgres_user: get_env_or_default("POSTGRES_USER", ""),
             postgres_password: get_env_or_default("POSTGRES_PASSWORD", ""),
             postgres_db: get_env_or_default("POSTGRES_DB", "vessel"),
 
             // Redis
             redis_host: get_env_or_default("REDIS_HOST", "localhost"),
-            redis_port: get_env_or_default("REDIS_PORT", "6379").parse().unwrap_or(6379),
+            redis_port: get_env_or_default("REDIS_PORT", "6379")
+                .parse()
+                .unwrap_or(6379),
             redis_password: get_env_or_default("REDIS_PASSWORD", ""),
             redis_db: get_env_or_default("REDIS_DB", "0").parse().unwrap_or(0),
 
             // JWT
             jwt_secret: get_env("JWT_SECRET").context("JWT_SECRET is required")?,
-            jwt_expiry_hours: get_env_or_default("JWT_EXPIRY_HOURS", "24").parse().unwrap_or(24),
+            jwt_expiry_hours: get_env_or_default("JWT_EXPIRY_HOURS", "24")
+                .parse()
+                .unwrap_or(24),
             jwt_refresh_expiry_hours: get_env_or_default("JWT_REFRESH_EXPIRY_HOURS", "168")
                 .parse()
                 .unwrap_or(168),
 
             // Blockchain (Base Network - replacing Lisk Sepolia)
             private_key: get_env_or_default("PRIVATE_KEY", ""),
-            blockchain_rpc_url: get_env_or_default("BLOCKCHAIN_RPC_URL", "https://mainnet.base.org"),
-            chain_id: get_env_or_default("CHAIN_ID", "8453").parse().unwrap_or(8453), // Base Mainnet: 8453, Base Sepolia: 84532
+            blockchain_rpc_url: get_env_or_default(
+                "BLOCKCHAIN_RPC_URL",
+                "https://mainnet.base.org",
+            ),
+            chain_id: get_env_or_default("CHAIN_ID", "8453")
+                .parse()
+                .unwrap_or(8453), // Base Mainnet: 8453, Base Sepolia: 84532
             block_explorer_url: get_env_or_default("BLOCK_EXPLORER_URL", "https://basescan.org"),
             invoice_nft_contract_addr: get_env_or_default("INVOICE_NFT_CONTRACT_ADDRESS", ""),
             invoice_pool_contract_addr: get_env_or_default("INVOICE_POOL_CONTRACT_ADDRESS", ""),
@@ -138,7 +149,9 @@ impl Config {
             pinata_gateway_url: get_env_or_default("PINATA_GATEWAY_URL", ""),
 
             // File Upload
-            max_file_size_mb: get_env_or_default("MAX_FILE_SIZE_MB", "10").parse().unwrap_or(10),
+            max_file_size_mb: get_env_or_default("MAX_FILE_SIZE_MB", "10")
+                .parse()
+                .unwrap_or(10),
             allowed_file_types: get_env_or_default("ALLOWED_FILE_TYPES", "pdf,png,jpg,jpeg"),
 
             // Platform Settings
@@ -166,14 +179,20 @@ impl Config {
 
             // SMTP Settings
             smtp_host: get_env_or_default("SMTP_HOST", "smtp.gmail.com"),
-            smtp_port: get_env_or_default("SMTP_PORT", "587").parse().unwrap_or(587),
+            smtp_port: get_env_or_default("SMTP_PORT", "587")
+                .parse()
+                .unwrap_or(587),
             smtp_username: get_env_or_default("SMTP_USERNAME", ""),
             smtp_password: get_env_or_default("SMTP_PASSWORD", "").replace(" ", ""),
             smtp_from: get_env_or_default("SMTP_FROM", ""),
 
             // OTP Settings
-            otp_expiry_minutes: get_env_or_default("OTP_EXPIRY_MINUTES", "5").parse().unwrap_or(5),
-            otp_max_attempts: get_env_or_default("OTP_MAX_ATTEMPTS", "5").parse().unwrap_or(5),
+            otp_expiry_minutes: get_env_or_default("OTP_EXPIRY_MINUTES", "5")
+                .parse()
+                .unwrap_or(5),
+            otp_max_attempts: get_env_or_default("OTP_MAX_ATTEMPTS", "5")
+                .parse()
+                .unwrap_or(5),
 
             // Currency Conversion
             default_buffer_rate: get_env_or_default("DEFAULT_BUFFER_RATE", "0.015")

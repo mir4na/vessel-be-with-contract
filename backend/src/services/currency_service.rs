@@ -1,9 +1,12 @@
-use std::sync::Arc;
 use chrono::{Duration, Utc};
+use std::sync::Arc;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
-use crate::models::{ConvertCurrencyResponse, DisbursementEstimateResponse, get_supported_currencies, SupportedCurrency};
+use crate::models::{
+    get_supported_currencies, ConvertCurrencyResponse, DisbursementEstimateResponse,
+    SupportedCurrency,
+};
 use crate::utils::generate_random_token;
 
 pub struct CurrencyService {
@@ -19,11 +22,18 @@ impl CurrencyService {
         get_supported_currencies()
     }
 
-    pub async fn get_locked_exchange_rate(&self, from_currency: &str, amount: f64) -> AppResult<ConvertCurrencyResponse> {
+    pub async fn get_locked_exchange_rate(
+        &self,
+        from_currency: &str,
+        amount: f64,
+    ) -> AppResult<ConvertCurrencyResponse> {
         // Validate currency
         let supported = self.get_supported_currencies();
         if !supported.iter().any(|c| c.code == from_currency) {
-            return Err(AppError::ValidationError(format!("Unsupported currency: {}", from_currency)));
+            return Err(AppError::ValidationError(format!(
+                "Unsupported currency: {}",
+                from_currency
+            )));
         }
 
         // Get exchange rate (in production, this would call an external API)
@@ -80,7 +90,12 @@ impl CurrencyService {
             "SGD" => 11500.0,
             "AUD" => 10500.0,
             "CNY" => 2150.0,
-            _ => return Err(AppError::ValidationError(format!("Unknown currency: {}", from_currency))),
+            _ => {
+                return Err(AppError::ValidationError(format!(
+                    "Unknown currency: {}",
+                    from_currency
+                )))
+            }
         };
 
         Ok(rate)

@@ -67,7 +67,7 @@ pub struct MitraApplication {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, Clone)]
 pub struct MitraApplyRequest {
     #[validate(length(min = 1, message = "Company name is required"))]
     pub company_name: String,

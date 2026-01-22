@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    RiskQuestionnaire, RiskQuestion, SubmitRiskQuestionnaireRequest,
-    RiskQuestionnaireStatusResponse, RiskQuestionnaireAnswers, get_risk_questions,
+    get_risk_questions, RiskQuestion, RiskQuestionnaire, RiskQuestionnaireAnswers,
+    RiskQuestionnaireStatusResponse, SubmitRiskQuestionnaireRequest,
 };
 use crate::repository::RiskQuestionnaireRepository;
 
@@ -21,40 +21,55 @@ impl RiskQuestionnaireService {
         get_risk_questions()
     }
 
-    pub async fn submit(&self, user_id: Uuid, req: SubmitRiskQuestionnaireRequest) -> AppResult<RiskQuestionnaire> {
+    pub async fn submit(
+        &self,
+        user_id: Uuid,
+        req: SubmitRiskQuestionnaireRequest,
+    ) -> AppResult<RiskQuestionnaire> {
         // Validate answers
         if !(1..=3).contains(&req.q1_answer) {
-            return Err(AppError::ValidationError("Invalid answer for Q1".to_string()));
+            return Err(AppError::ValidationError(
+                "Invalid answer for Q1".to_string(),
+            ));
         }
         if !(1..=2).contains(&req.q2_answer) {
-            return Err(AppError::ValidationError("Invalid answer for Q2".to_string()));
+            return Err(AppError::ValidationError(
+                "Invalid answer for Q2".to_string(),
+            ));
         }
         if !(1..=2).contains(&req.q3_answer) {
-            return Err(AppError::ValidationError("Invalid answer for Q3".to_string()));
+            return Err(AppError::ValidationError(
+                "Invalid answer for Q3".to_string(),
+            ));
         }
 
         // Check if catalyst should be unlocked
-        let catalyst_unlocked = self.check_catalyst_unlocked(req.q1_answer, req.q2_answer, req.q3_answer);
+        let catalyst_unlocked =
+            self.check_catalyst_unlocked(req.q1_answer, req.q2_answer, req.q3_answer);
 
         // Check if already exists
         if let Some(_existing) = self.rq_repo.find_by_user(user_id).await? {
             // Update existing
-            self.rq_repo.update(
-                user_id,
-                req.q1_answer,
-                req.q2_answer,
-                req.q3_answer,
-                catalyst_unlocked,
-            ).await
+            self.rq_repo
+                .update(
+                    user_id,
+                    req.q1_answer,
+                    req.q2_answer,
+                    req.q3_answer,
+                    catalyst_unlocked,
+                )
+                .await
         } else {
             // Create new
-            self.rq_repo.create(
-                user_id,
-                req.q1_answer,
-                req.q2_answer,
-                req.q3_answer,
-                catalyst_unlocked,
-            ).await
+            self.rq_repo
+                .create(
+                    user_id,
+                    req.q1_answer,
+                    req.q2_answer,
+                    req.q3_answer,
+                    catalyst_unlocked,
+                )
+                .await
         }
     }
 

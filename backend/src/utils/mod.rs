@@ -1,12 +1,12 @@
 #![allow(dead_code)] // Utility functions available for future features
 
-mod jwt;
 mod hash;
+mod jwt;
 pub mod response;
 mod validator;
 
-pub use jwt::*;
 pub use hash::*;
+pub use jwt::*;
 pub use response::*;
 
 /// Verify JWT token helper function used by middleware

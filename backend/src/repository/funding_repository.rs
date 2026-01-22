@@ -60,17 +60,20 @@ impl FundingRepository {
     }
 
     pub async fn find_by_invoice(&self, invoice_id: Uuid) -> AppResult<Option<FundingPool>> {
-        let pool = sqlx::query_as::<_, FundingPool>(
-            "SELECT * FROM funding_pools WHERE invoice_id = $1"
-        )
-        .bind(invoice_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let pool =
+            sqlx::query_as::<_, FundingPool>("SELECT * FROM funding_pools WHERE invoice_id = $1")
+                .bind(invoice_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(pool)
     }
 
-    pub async fn find_open_pools(&self, page: i32, per_page: i32) -> AppResult<(Vec<FundingPool>, i64)> {
+    pub async fn find_open_pools(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<FundingPool>, i64)> {
         let offset = (page - 1) * per_page;
 
         let pools = sqlx::query_as::<_, FundingPool>(
@@ -81,9 +84,10 @@ impl FundingRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM funding_pools WHERE status = 'open'")
-            .fetch_one(&self.pool)
-            .await?;
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM funding_pools WHERE status = 'open'")
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok((pools, total.0))
     }
@@ -92,7 +96,7 @@ impl FundingRepository {
         let offset = (page - 1) * per_page;
 
         let pools = sqlx::query_as::<_, FundingPool>(
-            "SELECT * FROM funding_pools ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+            "SELECT * FROM funding_pools ORDER BY created_at DESC LIMIT $1 OFFSET $2",
         )
         .bind(per_page)
         .bind(offset)
@@ -108,7 +112,7 @@ impl FundingRepository {
 
     pub async fn update_status(&self, id: Uuid, status: &str) -> AppResult<FundingPool> {
         let pool = sqlx::query_as::<_, FundingPool>(
-            "UPDATE funding_pools SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *"
+            "UPDATE funding_pools SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
         )
         .bind(id)
         .bind(status)
@@ -219,7 +223,7 @@ impl FundingRepository {
 
     pub async fn find_investments_by_pool(&self, pool_id: Uuid) -> AppResult<Vec<Investment>> {
         let investments = sqlx::query_as::<_, Investment>(
-            "SELECT * FROM investments WHERE pool_id = $1 ORDER BY invested_at DESC"
+            "SELECT * FROM investments WHERE pool_id = $1 ORDER BY invested_at DESC",
         )
         .bind(pool_id)
         .fetch_all(&self.pool)
@@ -228,7 +232,12 @@ impl FundingRepository {
         Ok(investments)
     }
 
-    pub async fn find_investments_by_investor(&self, investor_id: Uuid, page: i32, per_page: i32) -> AppResult<(Vec<Investment>, i64)> {
+    pub async fn find_investments_by_investor(
+        &self,
+        investor_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Investment>, i64)> {
         let offset = (page - 1) * per_page;
 
         let investments = sqlx::query_as::<_, Investment>(
@@ -240,15 +249,21 @@ impl FundingRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM investments WHERE investor_id = $1")
-            .bind(investor_id)
-            .fetch_one(&self.pool)
-            .await?;
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM investments WHERE investor_id = $1")
+                .bind(investor_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok((investments, total.0))
     }
 
-    pub async fn find_active_investments_by_investor(&self, investor_id: Uuid, page: i32, per_page: i32) -> AppResult<(Vec<Investment>, i64)> {
+    pub async fn find_active_investments_by_investor(
+        &self,
+        investor_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Investment>, i64)> {
         let offset = (page - 1) * per_page;
 
         let investments = sqlx::query_as::<_, Investment>(
@@ -261,7 +276,7 @@ impl FundingRepository {
         .await?;
 
         let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM investments WHERE investor_id = $1 AND status = 'active'"
+            "SELECT COUNT(*) FROM investments WHERE investor_id = $1 AND status = 'active'",
         )
         .bind(investor_id)
         .fetch_one(&self.pool)
@@ -272,7 +287,7 @@ impl FundingRepository {
 
     pub async fn update_investment_status(&self, id: Uuid, status: &str) -> AppResult<Investment> {
         let investment = sqlx::query_as::<_, Investment>(
-            "UPDATE investments SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *"
+            "UPDATE investments SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
         )
         .bind(id)
         .bind(status)
@@ -282,7 +297,12 @@ impl FundingRepository {
         Ok(investment)
     }
 
-    pub async fn set_investment_repaid(&self, id: Uuid, actual_return: Decimal, return_tx_hash: &str) -> AppResult<Investment> {
+    pub async fn set_investment_repaid(
+        &self,
+        id: Uuid,
+        actual_return: Decimal,
+        return_tx_hash: &str,
+    ) -> AppResult<Investment> {
         let investment = sqlx::query_as::<_, Investment>(
             r#"
             UPDATE investments
@@ -300,7 +320,10 @@ impl FundingRepository {
         Ok(investment)
     }
 
-    pub async fn get_investor_portfolio_stats(&self, investor_id: Uuid) -> AppResult<(Decimal, Decimal, Decimal, Decimal, Decimal, i64, i64)> {
+    pub async fn get_investor_portfolio_stats(
+        &self,
+        investor_id: Uuid,
+    ) -> AppResult<(Decimal, Decimal, Decimal, Decimal, Decimal, i64, i64)> {
         let stats: (Decimal, Decimal, Decimal, Decimal, Decimal, i64, i64) = sqlx::query_as(
             r#"
             SELECT
@@ -324,7 +347,7 @@ impl FundingRepository {
 
     pub async fn count_investors_in_pool(&self, pool_id: Uuid) -> AppResult<i64> {
         let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(DISTINCT investor_id) FROM investments WHERE pool_id = $1"
+            "SELECT COUNT(DISTINCT investor_id) FROM investments WHERE pool_id = $1",
         )
         .bind(pool_id)
         .fetch_one(&self.pool)

@@ -1,11 +1,11 @@
-use std::sync::Arc;
 use chrono::{Duration, Utc};
+use std::sync::Arc;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
 use crate::models::{SendOtpResponse, VerifyOtpResponse};
 use crate::repository::OtpRepository;
-use crate::utils::{JwtManager, generate_otp};
+use crate::utils::{generate_otp, JwtManager};
 
 use super::EmailService;
 
@@ -40,7 +40,7 @@ impl OtpService {
         // Generate OTP
         let code = generate_otp();
         let expires_at = Utc::now() + Duration::minutes(self.config.otp_expiry_minutes);
-        
+
         // Log OTP for development/debugging
         tracing::info!("Generated OTP for {}: {}", email, code);
 
@@ -48,7 +48,9 @@ impl OtpService {
         self.otp_repo.delete_by_email(email, purpose).await?;
 
         // Save new OTP
-        self.otp_repo.create(email, &code, purpose, expires_at).await?;
+        self.otp_repo
+            .create(email, &code, purpose, expires_at)
+            .await?;
 
         // Send email
         let subject = match purpose {
@@ -72,8 +74,7 @@ impl OtpService {
             </body>
             </html>
             "#,
-            code,
-            self.config.otp_expiry_minutes
+            code, self.config.otp_expiry_minutes
         );
 
         self.email_service.send_email(email, subject, &body).await?;
@@ -84,27 +85,41 @@ impl OtpService {
         })
     }
 
-    pub async fn verify_otp(&self, email: &str, code: &str, purpose: &str) -> AppResult<VerifyOtpResponse> {
+    pub async fn verify_otp(
+        &self,
+        email: &str,
+        code: &str,
+        purpose: &str,
+    ) -> AppResult<VerifyOtpResponse> {
         // First, find the latest OTP for this email and purpose
-        let otp = self.otp_repo
+        let otp = self
+            .otp_repo
             .find_latest(email, purpose)
             .await?
-            .ok_or_else(|| AppError::ValidationError("No OTP found. Please request a new OTP.".to_string()))?;
+            .ok_or_else(|| {
+                AppError::ValidationError("No OTP found. Please request a new OTP.".to_string())
+            })?;
 
         // Check if already verified
         if otp.verified {
-            return Err(AppError::ValidationError("OTP already used. Please request a new OTP.".to_string()));
+            return Err(AppError::ValidationError(
+                "OTP already used. Please request a new OTP.".to_string(),
+            ));
         }
 
         // Check max attempts first
         if otp.attempts >= self.config.otp_max_attempts {
-            return Err(AppError::ValidationError("Maximum attempts exceeded. Please request a new OTP.".to_string()));
+            return Err(AppError::ValidationError(
+                "Maximum attempts exceeded. Please request a new OTP.".to_string(),
+            ));
         }
 
         // Check if expired
         // Check if expired
         if otp.expires_at < Utc::now() {
-            return Err(AppError::ValidationError("OTP has expired. Please request a new OTP.".to_string()));
+            return Err(AppError::ValidationError(
+                "OTP has expired. Please request a new OTP.".to_string(),
+            ));
         }
 
         // Check if code matches
@@ -113,9 +128,15 @@ impl OtpService {
             self.otp_repo.increment_attempts(otp.id).await?;
             let remaining = self.config.otp_max_attempts - otp.attempts - 1;
             if remaining > 0 {
-                return Err(AppError::ValidationError(format!("Invalid OTP code. {} attempts remaining.", remaining)));
+                return Err(AppError::ValidationError(format!(
+                    "Invalid OTP code. {} attempts remaining.",
+                    remaining
+                )));
             } else {
-                return Err(AppError::ValidationError("Invalid OTP code. Maximum attempts exceeded. Please request a new OTP.".to_string()));
+                return Err(AppError::ValidationError(
+                    "Invalid OTP code. Maximum attempts exceeded. Please request a new OTP."
+                        .to_string(),
+                ));
             }
         }
 

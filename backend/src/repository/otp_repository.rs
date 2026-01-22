@@ -15,7 +15,13 @@ impl OtpRepository {
         Self { pool }
     }
 
-    pub async fn create(&self, email: &str, code: &str, purpose: &str, expires_at: DateTime<Utc>) -> AppResult<OtpCode> {
+    pub async fn create(
+        &self,
+        email: &str,
+        code: &str,
+        purpose: &str,
+        expires_at: DateTime<Utc>,
+    ) -> AppResult<OtpCode> {
         let otp = sqlx::query_as::<_, OtpCode>(
             r#"
             INSERT INTO otp_codes (email, code, purpose, expires_at, verified, attempts)
@@ -50,7 +56,12 @@ impl OtpRepository {
         Ok(otp)
     }
 
-    pub async fn find_valid(&self, email: &str, code: &str, purpose: &str) -> AppResult<Option<OtpCode>> {
+    pub async fn find_valid(
+        &self,
+        email: &str,
+        code: &str,
+        purpose: &str,
+    ) -> AppResult<Option<OtpCode>> {
         let otp = sqlx::query_as::<_, OtpCode>(
             r#"
             SELECT * FROM otp_codes
@@ -71,7 +82,7 @@ impl OtpRepository {
 
     pub async fn mark_verified(&self, id: Uuid) -> AppResult<OtpCode> {
         let otp = sqlx::query_as::<_, OtpCode>(
-            "UPDATE otp_codes SET verified = true WHERE id = $1 RETURNING *"
+            "UPDATE otp_codes SET verified = true WHERE id = $1 RETURNING *",
         )
         .bind(id)
         .fetch_one(&self.pool)
@@ -82,7 +93,7 @@ impl OtpRepository {
 
     pub async fn increment_attempts(&self, id: Uuid) -> AppResult<OtpCode> {
         let otp = sqlx::query_as::<_, OtpCode>(
-            "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1 RETURNING *"
+            "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1 RETURNING *",
         )
         .bind(id)
         .fetch_one(&self.pool)

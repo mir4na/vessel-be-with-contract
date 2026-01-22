@@ -1,13 +1,13 @@
 use actix_web::{
+    body::EitherBody,
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpResponse,
-    body::EitherBody,
 };
 use futures_util::future::{ok, LocalBoxFuture, Ready};
-use std::sync::Arc;
 use std::collections::HashMap;
-use tokio::sync::RwLock;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
 use crate::utils::ApiResponse;
 
@@ -141,8 +141,9 @@ where
         Box::pin(async move {
             if !limiter.check(&client_ip).await {
                 let (req, _) = fut.await?.into_parts();
-                let response = HttpResponse::TooManyRequests()
-                    .json(ApiResponse::<()>::error("Rate limit exceeded. Please try again later."));
+                let response = HttpResponse::TooManyRequests().json(ApiResponse::<()>::error(
+                    "Rate limit exceeded. Please try again later.",
+                ));
                 return Ok(ServiceResponse::new(req, response).map_into_right_body());
             }
 

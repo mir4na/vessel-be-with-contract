@@ -1,6 +1,6 @@
+use anyhow::Result;
 use deadpool_redis::{Config as RedisConfig, Pool, Runtime};
 use tracing::info;
-use anyhow::Result;
 
 use crate::config::Config;
 

@@ -1,13 +1,12 @@
+use anyhow::Result;
 use sqlx::PgPool;
 use tracing::{info, warn};
-use anyhow::Result;
 
 /// Run database migrations
 pub async fn run_migrations(pool: &PgPool) -> Result<()> {
     let migrations = vec![
         // Enable UUID extension
         r#"CREATE EXTENSION IF NOT EXISTS "uuid-ossp";"#,
-
         // Users table
         r#"CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -21,13 +20,12 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             phone_number VARCHAR(20),
             cooperative_agreement BOOLEAN DEFAULT false,
             member_status VARCHAR(30) DEFAULT 'calon_anggota_pendana',
-            balance_idr DECIMAL(20,2) DEFAULT 0,
+            balance_idrx DECIMAL(20,2) DEFAULT 0,
             email_verified BOOLEAN DEFAULT false,
             profile_completed BOOLEAN DEFAULT false,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // User profiles table
         r#"CREATE TABLE IF NOT EXISTS user_profiles (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -42,24 +40,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
-        // KYC verifications table
-        r#"CREATE TABLE IF NOT EXISTS kyc_verifications (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-            verification_type VARCHAR(10) NOT NULL CHECK (verification_type IN ('kyc', 'kyb')),
-            status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-            id_type VARCHAR(50),
-            id_number VARCHAR(100),
-            id_document_url TEXT,
-            selfie_url TEXT,
-            rejection_reason TEXT,
-            verified_by UUID REFERENCES users(id),
-            verified_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );"#,
-
         // Invoices table
         r#"CREATE TABLE IF NOT EXISTS invoices (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -106,7 +86,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Invoice documents table
         r#"CREATE TABLE IF NOT EXISTS invoice_documents (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -122,7 +101,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             file_size INTEGER,
             uploaded_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Invoice NFTs table
         r#"CREATE TABLE IF NOT EXISTS invoice_nfts (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -139,7 +117,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Funding pools table
         r#"CREATE TABLE IF NOT EXISTS funding_pools (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -165,7 +142,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Investments table
         r#"CREATE TABLE IF NOT EXISTS investments (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -183,7 +159,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Transactions table
         r#"CREATE TABLE IF NOT EXISTS transactions (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -205,7 +180,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // OTP codes table
         r#"CREATE TABLE IF NOT EXISTS otp_codes (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -217,7 +191,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             attempts INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Mitra applications table
         r#"CREATE TABLE IF NOT EXISTS mitra_applications (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -242,7 +215,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );"#,
-
         // Risk questionnaires table
         r#"CREATE TABLE IF NOT EXISTS risk_questionnaires (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -254,7 +226,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             completed_at TIMESTAMP DEFAULT NOW(),
             created_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // User identities table
         r#"CREATE TABLE IF NOT EXISTS user_identities (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -268,22 +239,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
-        // Bank accounts table
-        r#"CREATE TABLE IF NOT EXISTS bank_accounts (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-            bank_code VARCHAR(20) NOT NULL,
-            bank_name VARCHAR(100) NOT NULL,
-            account_number VARCHAR(50) NOT NULL,
-            account_name VARCHAR(255) NOT NULL,
-            is_verified BOOLEAN DEFAULT false,
-            is_primary BOOLEAN DEFAULT false,
-            verified_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );"#,
-
         // Virtual accounts table
         r#"CREATE TABLE IF NOT EXISTS virtual_accounts (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -299,7 +254,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Importer payments table
         r#"CREATE TABLE IF NOT EXISTS importer_payments (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -317,7 +271,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Country tiers table
         r#"CREATE TABLE IF NOT EXISTS country_tiers (
             country_code VARCHAR(3) PRIMARY KEY,
@@ -325,7 +278,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             tier INTEGER NOT NULL CHECK (tier IN (1, 2, 3)),
             flag_emoji VARCHAR(10)
         );"#,
-
         // Balance transactions table
         r#"CREATE TABLE IF NOT EXISTS balance_transactions (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -339,7 +291,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             description TEXT,
             created_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         // Indexes
         r#"CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_users_wallet ON users(wallet_address);"#,
@@ -362,8 +313,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         r#"CREATE INDEX IF NOT EXISTS idx_risk_questionnaires_user ON risk_questionnaires(user_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_user_identities_nik ON user_identities(nik);"#,
-        r#"CREATE INDEX IF NOT EXISTS idx_bank_accounts_user ON bank_accounts(user_id);"#,
-        r#"CREATE INDEX IF NOT EXISTS idx_bank_accounts_primary ON bank_accounts(user_id, is_primary);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_virtual_accounts_pool ON virtual_accounts(pool_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_virtual_accounts_user ON virtual_accounts(user_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_virtual_accounts_status ON virtual_accounts(status);"#,
@@ -372,10 +321,8 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         r#"CREATE INDEX IF NOT EXISTS idx_importer_payments_status ON importer_payments(payment_status);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_balance_tx_user ON balance_transactions(user_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_balance_tx_type ON balance_transactions(type);"#,
-
         // Add explorer_url column to transactions for on-chain verification links
         r#"ALTER TABLE transactions ADD COLUMN IF NOT EXISTS explorer_url TEXT;"#,
-
         // Add wallet_nonce table for secure wallet authentication
         r#"CREATE TABLE IF NOT EXISTS wallet_nonces (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -385,21 +332,17 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             used BOOLEAN DEFAULT false,
             created_at TIMESTAMP DEFAULT NOW()
         );"#,
-
         r#"CREATE INDEX IF NOT EXISTS idx_wallet_nonces_address ON wallet_nonces(wallet_address);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_wallet_nonces_expires ON wallet_nonces(expires_at);"#,
-
         // Fix timestamp columns to use TIMESTAMPTZ for chrono compatibility
         r#"ALTER TABLE otp_codes ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE otp_codes ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE wallet_nonces ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE wallet_nonces ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
-
         // Fix mitra_applications timestamps
         r#"ALTER TABLE mitra_applications ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE mitra_applications ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE mitra_applications ALTER COLUMN reviewed_at TYPE TIMESTAMPTZ USING reviewed_at AT TIME ZONE 'UTC';"#,
-
         // Insert default country tiers
         r#"INSERT INTO country_tiers (country_code, country_name, tier, flag_emoji) VALUES
             ('USA', 'United States', 1, '🇺🇸'),
@@ -433,11 +376,10 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             ('ZAF', 'South Africa', 3, '🇿🇦'),
             ('ARG', 'Argentina', 3, '🇦🇷')
         ON CONFLICT (country_code) DO NOTHING;"#,
-
         // Insert default admin user
         r#"INSERT INTO users (
             email, username, password_hash, role, is_verified, is_active,
-            cooperative_agreement, member_status, balance_idr, email_verified, profile_completed
+            cooperative_agreement, member_status, balance_idrx, email_verified, profile_completed
         ) VALUES (
             'admin@vessel.com',
             'admin',
@@ -451,13 +393,24 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             true,
             true
         ) ON CONFLICT (email) DO NOTHING;"#,
+        // Fix database schema: Rename balance_idr to balance_idrx if it exists
+        r#"DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'balance_idr') THEN
+                ALTER TABLE users RENAME COLUMN balance_idr TO balance_idrx;
+            END IF;
+        END $$;"#,
     ];
 
     for (i, migration) in migrations.iter().enumerate() {
         match sqlx::query(migration).execute(pool).await {
             Ok(_) => {}
             Err(e) => {
-                warn!("Migration {} may have already been applied or failed: {}", i + 1, e);
+                warn!(
+                    "Migration {} may have already been applied or failed: {}",
+                    i + 1,
+                    e
+                );
             }
         }
     }

@@ -213,9 +213,17 @@ pub struct CreateInvoiceFundingRequest {
     pub priority_ratio: Option<f64>,
     #[serde(default)]
     pub catalyst_ratio: Option<f64>,
-    #[validate(range(min = 0.01, max = 100.0, message = "Priority interest rate must be 0.01-100"))]
+    #[validate(range(
+        min = 0.01,
+        max = 100.0,
+        message = "Priority interest rate must be 0.01-100"
+    ))]
     pub priority_interest_rate: f64,
-    #[validate(range(min = 0.01, max = 100.0, message = "Catalyst interest rate must be 0.01-100"))]
+    #[validate(range(
+        min = 0.01,
+        max = 100.0,
+        message = "Catalyst interest rate must be 0.01-100"
+    ))]
     pub catalyst_interest_rate: f64,
 
     // Repeat buyer

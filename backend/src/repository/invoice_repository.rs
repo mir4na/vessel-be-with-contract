@@ -64,7 +64,12 @@ impl InvoiceRepository {
         Ok(invoice)
     }
 
-    pub async fn find_by_exporter(&self, exporter_id: Uuid, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
+    pub async fn find_by_exporter(
+        &self,
+        exporter_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Invoice>, i64)> {
         let offset = (page - 1) * per_page;
 
         let invoices = sqlx::query_as::<_, Invoice>(
@@ -84,11 +89,16 @@ impl InvoiceRepository {
         Ok((invoices, total.0))
     }
 
-    pub async fn find_by_status(&self, status: &str, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
+    pub async fn find_by_status(
+        &self,
+        status: &str,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Invoice>, i64)> {
         let offset = (page - 1) * per_page;
 
         let invoices = sqlx::query_as::<_, Invoice>(
-            "SELECT * FROM invoices WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+            "SELECT * FROM invoices WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
         )
         .bind(status)
         .bind(per_page)
@@ -116,7 +126,7 @@ impl InvoiceRepository {
         .await?;
 
         let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM invoices WHERE status IN ('approved', 'tokenized', 'funding')"
+            "SELECT COUNT(*) FROM invoices WHERE status IN ('approved', 'tokenized', 'funding')",
         )
         .fetch_one(&self.pool)
         .await?;
@@ -126,7 +136,7 @@ impl InvoiceRepository {
 
     pub async fn update_status(&self, id: Uuid, status: &str) -> AppResult<Invoice> {
         let invoice = sqlx::query_as::<_, Invoice>(
-            "UPDATE invoices SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *"
+            "UPDATE invoices SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
         )
         .bind(id)
         .bind(status)
@@ -136,7 +146,13 @@ impl InvoiceRepository {
         Ok(invoice)
     }
 
-    pub async fn update_grade(&self, id: Uuid, grade: &str, grade_score: i32, funding_limit: Decimal) -> AppResult<Invoice> {
+    pub async fn update_grade(
+        &self,
+        id: Uuid,
+        grade: &str,
+        grade_score: i32,
+        funding_limit: Decimal,
+    ) -> AppResult<Invoice> {
         let invoice = sqlx::query_as::<_, Invoice>(
             r#"
             UPDATE invoices
@@ -240,9 +256,12 @@ impl InvoiceRepository {
         Ok(doc)
     }
 
-    pub async fn find_documents_by_invoice(&self, invoice_id: Uuid) -> AppResult<Vec<InvoiceDocument>> {
+    pub async fn find_documents_by_invoice(
+        &self,
+        invoice_id: Uuid,
+    ) -> AppResult<Vec<InvoiceDocument>> {
         let docs = sqlx::query_as::<_, InvoiceDocument>(
-            "SELECT * FROM invoice_documents WHERE invoice_id = $1 ORDER BY uploaded_at DESC"
+            "SELECT * FROM invoice_documents WHERE invoice_id = $1 ORDER BY uploaded_at DESC",
         )
         .bind(invoice_id)
         .fetch_all(&self.pool)
@@ -283,12 +302,11 @@ impl InvoiceRepository {
     }
 
     pub async fn find_nft_by_invoice(&self, invoice_id: Uuid) -> AppResult<Option<InvoiceNft>> {
-        let nft = sqlx::query_as::<_, InvoiceNft>(
-            "SELECT * FROM invoice_nfts WHERE invoice_id = $1"
-        )
-        .bind(invoice_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let nft =
+            sqlx::query_as::<_, InvoiceNft>("SELECT * FROM invoice_nfts WHERE invoice_id = $1")
+                .bind(invoice_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(nft)
     }

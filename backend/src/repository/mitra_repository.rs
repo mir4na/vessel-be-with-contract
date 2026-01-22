@@ -59,19 +59,18 @@ impl MitraRepository {
     }
 
     pub async fn find_by_id(&self, id: Uuid) -> AppResult<Option<MitraApplication>> {
-        let app = sqlx::query_as::<_, MitraApplication>(
-            "SELECT * FROM mitra_applications WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let app =
+            sqlx::query_as::<_, MitraApplication>("SELECT * FROM mitra_applications WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(app)
     }
 
     pub async fn find_by_user(&self, user_id: Uuid) -> AppResult<Option<MitraApplication>> {
         let app = sqlx::query_as::<_, MitraApplication>(
-            "SELECT * FROM mitra_applications WHERE user_id = $1"
+            "SELECT * FROM mitra_applications WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -80,7 +79,11 @@ impl MitraRepository {
         Ok(app)
     }
 
-    pub async fn find_pending(&self, page: i32, per_page: i32) -> AppResult<(Vec<MitraApplication>, i64)> {
+    pub async fn find_pending(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<MitraApplication>, i64)> {
         let offset = (page - 1) * per_page;
 
         let apps = sqlx::query_as::<_, MitraApplication>(
@@ -91,13 +94,35 @@ impl MitraRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM mitra_applications WHERE status = 'pending'")
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM mitra_applications WHERE status = 'pending'")
+                .fetch_one(&self.pool)
+                .await?;
+
+        Ok((apps, total.0))
+    }
+
+    pub async fn find_all(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<MitraApplication>, i64)> {
+        let offset = (page - 1) * per_page;
+
+        let apps = sqlx::query_as::<_, MitraApplication>(
+            "SELECT * FROM mitra_applications ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM mitra_applications")
             .fetch_one(&self.pool)
             .await?;
 
         Ok((apps, total.0))
     }
-
     pub async fn update_document(
         &self,
         id: Uuid,
@@ -108,7 +133,11 @@ impl MitraRepository {
             "nib" => "nib_document_url",
             "akta_pendirian" => "akta_pendirian_url",
             "ktp_direktur" => "ktp_direktur_url",
-            _ => return Err(crate::error::AppError::BadRequest("Invalid document type".to_string())),
+            _ => {
+                return Err(crate::error::AppError::BadRequest(
+                    "Invalid document type".to_string(),
+                ))
+            }
         };
 
         let query = format!(
@@ -142,7 +171,12 @@ impl MitraRepository {
         Ok(app)
     }
 
-    pub async fn reject(&self, id: Uuid, reviewed_by: Uuid, reason: &str) -> AppResult<MitraApplication> {
+    pub async fn reject(
+        &self,
+        id: Uuid,
+        reviewed_by: Uuid,
+        reason: &str,
+    ) -> AppResult<MitraApplication> {
         let app = sqlx::query_as::<_, MitraApplication>(
             r#"
             UPDATE mitra_applications
@@ -192,17 +226,19 @@ impl MitraRepository {
     }
 
     pub async fn find_virtual_account(&self, id: Uuid) -> AppResult<Option<VirtualAccount>> {
-        let va = sqlx::query_as::<_, VirtualAccount>(
-            "SELECT * FROM virtual_accounts WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let va =
+            sqlx::query_as::<_, VirtualAccount>("SELECT * FROM virtual_accounts WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(va)
     }
 
-    pub async fn find_virtual_account_by_pool(&self, pool_id: Uuid) -> AppResult<Option<VirtualAccount>> {
+    pub async fn find_virtual_account_by_pool(
+        &self,
+        pool_id: Uuid,
+    ) -> AppResult<Option<VirtualAccount>> {
         let va = sqlx::query_as::<_, VirtualAccount>(
             "SELECT * FROM virtual_accounts WHERE pool_id = $1 AND status = 'pending' ORDER BY created_at DESC LIMIT 1"
         )

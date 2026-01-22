@@ -46,7 +46,12 @@ impl JwtManager {
         }
     }
 
-    pub fn generate_access_token(&self, user_id: Uuid, email: &str, role: &str) -> AppResult<String> {
+    pub fn generate_access_token(
+        &self,
+        user_id: Uuid,
+        email: &str,
+        role: &str,
+    ) -> AppResult<String> {
         let now = Utc::now();
         let exp = now + Duration::hours(self.expiry_hours);
 
@@ -67,7 +72,12 @@ impl JwtManager {
         .map_err(|e| AppError::InternalError(format!("Failed to generate token: {}", e)))
     }
 
-    pub fn generate_refresh_token(&self, user_id: Uuid, email: &str, role: &str) -> AppResult<String> {
+    pub fn generate_refresh_token(
+        &self,
+        user_id: Uuid,
+        email: &str,
+        role: &str,
+    ) -> AppResult<String> {
         let now = Utc::now();
         let exp = now + Duration::hours(self.refresh_expiry_hours);
 

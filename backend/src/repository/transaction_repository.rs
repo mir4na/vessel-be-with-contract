@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppResult;
-use crate::models::{Transaction, BalanceTransaction};
+use crate::models::{BalanceTransaction, Transaction};
 
 #[derive(Clone)]
 pub struct TransactionRepository {
@@ -67,7 +67,12 @@ impl TransactionRepository {
         Ok(tx)
     }
 
-    pub async fn find_by_user(&self, user_id: Uuid, page: i32, per_page: i32) -> AppResult<(Vec<Transaction>, i64)> {
+    pub async fn find_by_user(
+        &self,
+        user_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Transaction>, i64)> {
         let offset = (page - 1) * per_page;
 
         let txs = sqlx::query_as::<_, Transaction>(
@@ -89,7 +94,7 @@ impl TransactionRepository {
 
     pub async fn find_by_invoice(&self, invoice_id: Uuid) -> AppResult<Vec<Transaction>> {
         let txs = sqlx::query_as::<_, Transaction>(
-            "SELECT * FROM transactions WHERE invoice_id = $1 ORDER BY created_at DESC"
+            "SELECT * FROM transactions WHERE invoice_id = $1 ORDER BY created_at DESC",
         )
         .bind(invoice_id)
         .fetch_all(&self.pool)
@@ -100,7 +105,7 @@ impl TransactionRepository {
 
     pub async fn update_status(&self, id: Uuid, status: &str) -> AppResult<Transaction> {
         let tx = sqlx::query_as::<_, Transaction>(
-            "UPDATE transactions SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *"
+            "UPDATE transactions SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
         )
         .bind(id)
         .bind(status)
@@ -183,10 +188,11 @@ impl TransactionRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM balance_transactions WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&self.pool)
-            .await?;
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM balance_transactions WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok((txs, total.0))
     }
@@ -237,16 +243,18 @@ impl TransactionRepository {
 
         // Also record in balance_transactions for audit trail if there's a reference
         if reference_id.is_some() {
-            let _ = self.create_balance_transaction(
-                user_id,
-                tx_type,
-                amount,
-                Decimal::ZERO, // On-chain doesn't use internal balance
-                Decimal::ZERO,
-                reference_id,
-                reference_type,
-                description,
-            ).await;
+            let _ = self
+                .create_balance_transaction(
+                    user_id,
+                    tx_type,
+                    amount,
+                    Decimal::ZERO, // On-chain doesn't use internal balance
+                    Decimal::ZERO,
+                    reference_id,
+                    reference_type,
+                    description,
+                )
+                .await;
         }
 
         Ok(tx)
@@ -270,10 +278,12 @@ impl TransactionRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM transactions WHERE user_id = $1 AND tx_hash IS NOT NULL")
-            .bind(user_id)
-            .fetch_one(&self.pool)
-            .await?;
+        let total: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM transactions WHERE user_id = $1 AND tx_hash IS NOT NULL",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
 
         Ok((txs, total.0))
     }
@@ -289,7 +299,7 @@ impl TransactionRepository {
             JOIN balance_transactions bt ON t.tx_hash IS NOT NULL
             WHERE bt.reference_id = $1 AND bt.reference_type = 'pool'
             ORDER BY t.created_at DESC
-            "#
+            "#,
         )
         .bind(pool_id)
         .fetch_all(&self.pool)

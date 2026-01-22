@@ -1,9 +1,9 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use uuid::Uuid;
 
+use super::AppState;
 use crate::error::{AppError, AppResult};
 use crate::utils::{ApiResponse, Claims};
-use super::AppState;
 
 fn get_user_id(req: &HttpRequest) -> AppResult<Uuid> {
     req.extensions()
@@ -38,9 +38,7 @@ pub async fn get_idrx_balance(
 
 /// GET /api/v1/blockchain/platform-balance
 /// Get platform wallet IDRX balance (public, transparent)
-pub async fn get_platform_balance(
-    state: web::Data<AppState>,
-) -> AppResult<HttpResponse> {
+pub async fn get_platform_balance(state: web::Data<AppState>) -> AppResult<HttpResponse> {
     let balance = state.blockchain_service.get_platform_idrx_balance().await?;
     let platform_wallet = state.blockchain_service.get_platform_wallet();
 
@@ -64,8 +62,14 @@ pub async fn verify_transaction(
     path: web::Path<String>,
 ) -> AppResult<HttpResponse> {
     let tx_hash = path.into_inner();
-    let verified = state.blockchain_service.verify_transaction(&tx_hash).await?;
-    let block = state.blockchain_service.get_transaction_block(&tx_hash).await?;
+    let verified = state
+        .blockchain_service
+        .verify_transaction(&tx_hash)
+        .await?;
+    let block = state
+        .blockchain_service
+        .get_transaction_block(&tx_hash)
+        .await?;
     let explorer_url = state.blockchain_service.get_explorer_url(&tx_hash);
 
     Ok(HttpResponse::Ok().json(ApiResponse::success(
@@ -77,7 +81,11 @@ pub async fn verify_transaction(
             "chain_id": 8453,
             "explorer_url": explorer_url
         }),
-        if verified { "Transaction verified on-chain" } else { "Transaction not found or failed" },
+        if verified {
+            "Transaction verified on-chain"
+        } else {
+            "Transaction not found or failed"
+        },
     )))
 }
 
@@ -89,7 +97,8 @@ pub async fn get_transfer_history(
     query: web::Query<TransferHistoryQuery>,
 ) -> AppResult<HttpResponse> {
     let address = path.into_inner();
-    let transfers = state.blockchain_service
+    let transfers = state
+        .blockchain_service
         .get_transfer_history(&address, query.from_block)
         .await?;
 
@@ -114,7 +123,8 @@ pub async fn get_my_transactions(
 ) -> AppResult<HttpResponse> {
     let user_id = get_user_id(&req)?;
 
-    let (transactions, total) = state.tx_repo
+    let (transactions, total) = state
+        .tx_repo
         .find_blockchain_transactions_by_user(
             user_id,
             query.page.unwrap_or(1),
@@ -138,10 +148,14 @@ pub async fn get_my_idrx_balance(
 ) -> AppResult<HttpResponse> {
     let user_id = get_user_id(&req)?;
 
-    let user = state.user_repo.find_by_id(user_id).await?
+    let user = state
+        .user_repo
+        .find_by_id(user_id)
+        .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
-    let wallet = user.wallet_address
+    let wallet = user
+        .wallet_address
         .ok_or_else(|| AppError::ValidationError("Wallet address not set".to_string()))?;
 
     let balance = state.blockchain_service.get_idrx_balance(&wallet).await?;
@@ -168,14 +182,21 @@ pub async fn get_pool_transactions(
     let pool_id = path.into_inner();
 
     // Get pool to verify it exists
-    let pool = state.funding_repo.find_by_id(pool_id).await?
+    let pool = state
+        .funding_repo
+        .find_by_id(pool_id)
+        .await?
         .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
 
     // Get all blockchain transactions for this pool
-    let transactions = state.tx_repo.find_blockchain_transactions_by_pool(pool_id).await?;
+    let transactions = state
+        .tx_repo
+        .find_blockchain_transactions_by_pool(pool_id)
+        .await?;
 
     // Calculate totals
-    let total_invested: f64 = transactions.iter()
+    let total_invested: f64 = transactions
+        .iter()
         .filter(|t| t.tx_type == "investment")
         .map(|t| t.amount.to_string().parse::<f64>().unwrap_or(0.0))
         .sum();
@@ -198,9 +219,7 @@ pub async fn get_pool_transactions(
 
 /// GET /api/v1/blockchain/chain-info
 /// Get current blockchain info (public)
-pub async fn get_chain_info(
-    state: web::Data<AppState>,
-) -> AppResult<HttpResponse> {
+pub async fn get_chain_info(state: web::Data<AppState>) -> AppResult<HttpResponse> {
     let chain_id = state.blockchain_service.get_chain_id().await?;
     let block_number = state.blockchain_service.get_block_number().await?;
 

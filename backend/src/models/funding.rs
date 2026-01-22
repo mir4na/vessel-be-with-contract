@@ -224,8 +224,12 @@ pub struct MarketplaceFilter {
     pub per_page: i32,
 }
 
-fn default_page() -> i32 { 1 }
-fn default_per_page() -> i32 { 10 }
+fn default_page() -> i32 {
+    1
+}
+fn default_per_page() -> i32 {
+    10
+}
 
 #[derive(Debug, Serialize)]
 pub struct MarketplacePoolResponse {

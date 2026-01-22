@@ -68,7 +68,7 @@ pub struct User {
     pub is_active: bool,
     pub cooperative_agreement: bool,
     pub member_status: String,
-    pub balance_idr: rust_decimal::Decimal,
+    pub balance_idrx: rust_decimal::Decimal,
     pub email_verified: bool,
     pub profile_completed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -180,16 +180,46 @@ pub struct SupportedBank {
 
 pub fn get_supported_banks() -> Vec<SupportedBank> {
     vec![
-        SupportedBank { code: "bca".to_string(), name: "Bank Central Asia (BCA)".to_string() },
-        SupportedBank { code: "mandiri".to_string(), name: "Bank Mandiri".to_string() },
-        SupportedBank { code: "bni".to_string(), name: "Bank Negara Indonesia (BNI)".to_string() },
-        SupportedBank { code: "bri".to_string(), name: "Bank Rakyat Indonesia (BRI)".to_string() },
-        SupportedBank { code: "cimb".to_string(), name: "CIMB Niaga".to_string() },
-        SupportedBank { code: "danamon".to_string(), name: "Bank Danamon".to_string() },
-        SupportedBank { code: "permata".to_string(), name: "Bank Permata".to_string() },
-        SupportedBank { code: "bsi".to_string(), name: "Bank Syariah Indonesia (BSI)".to_string() },
-        SupportedBank { code: "btn".to_string(), name: "Bank Tabungan Negara (BTN)".to_string() },
-        SupportedBank { code: "ocbc".to_string(), name: "OCBC NISP".to_string() },
+        SupportedBank {
+            code: "bca".to_string(),
+            name: "Bank Central Asia (BCA)".to_string(),
+        },
+        SupportedBank {
+            code: "mandiri".to_string(),
+            name: "Bank Mandiri".to_string(),
+        },
+        SupportedBank {
+            code: "bni".to_string(),
+            name: "Bank Negara Indonesia (BNI)".to_string(),
+        },
+        SupportedBank {
+            code: "bri".to_string(),
+            name: "Bank Rakyat Indonesia (BRI)".to_string(),
+        },
+        SupportedBank {
+            code: "cimb".to_string(),
+            name: "CIMB Niaga".to_string(),
+        },
+        SupportedBank {
+            code: "danamon".to_string(),
+            name: "Bank Danamon".to_string(),
+        },
+        SupportedBank {
+            code: "permata".to_string(),
+            name: "Bank Permata".to_string(),
+        },
+        SupportedBank {
+            code: "bsi".to_string(),
+            name: "Bank Syariah Indonesia (BSI)".to_string(),
+        },
+        SupportedBank {
+            code: "btn".to_string(),
+            name: "Bank Tabungan Negara (BTN)".to_string(),
+        },
+        SupportedBank {
+            code: "ocbc".to_string(),
+            name: "OCBC NISP".to_string(),
+        },
     ]
 }
 

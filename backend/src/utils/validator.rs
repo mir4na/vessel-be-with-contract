@@ -13,7 +13,9 @@ pub fn validate_request<T: Validate>(request: &T) -> AppResult<()> {
                     format!(
                         "{}: {}",
                         field,
-                        err.message.clone().unwrap_or_else(|| "Invalid value".into())
+                        err.message
+                            .clone()
+                            .unwrap_or_else(|| "Invalid value".into())
                     )
                 })
             })

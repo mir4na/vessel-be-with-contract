@@ -70,12 +70,16 @@ impl fmt::Display for AppError {
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
         let (status, code, message) = match self {
-            AppError::Unauthorized(msg) => {
-                (actix_web::http::StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.clone())
-            }
-            AppError::Forbidden(msg) => {
-                (actix_web::http::StatusCode::FORBIDDEN, "FORBIDDEN", msg.clone())
-            }
+            AppError::Unauthorized(msg) => (
+                actix_web::http::StatusCode::UNAUTHORIZED,
+                "UNAUTHORIZED",
+                msg.clone(),
+            ),
+            AppError::Forbidden(msg) => (
+                actix_web::http::StatusCode::FORBIDDEN,
+                "FORBIDDEN",
+                msg.clone(),
+            ),
             AppError::InvalidCredentials => (
                 actix_web::http::StatusCode::UNAUTHORIZED,
                 "INVALID_CREDENTIALS",
@@ -91,18 +95,26 @@ impl ResponseError for AppError {
                 "INVALID_TOKEN",
                 "Invalid token".to_string(),
             ),
-            AppError::ValidationError(msg) => {
-                (actix_web::http::StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone())
-            }
-            AppError::BadRequest(msg) => {
-                (actix_web::http::StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.clone())
-            }
-            AppError::NotFound(msg) => {
-                (actix_web::http::StatusCode::NOT_FOUND, "NOT_FOUND", msg.clone())
-            }
-            AppError::Conflict(msg) => {
-                (actix_web::http::StatusCode::CONFLICT, "CONFLICT", msg.clone())
-            }
+            AppError::ValidationError(msg) => (
+                actix_web::http::StatusCode::BAD_REQUEST,
+                "VALIDATION_ERROR",
+                msg.clone(),
+            ),
+            AppError::BadRequest(msg) => (
+                actix_web::http::StatusCode::BAD_REQUEST,
+                "BAD_REQUEST",
+                msg.clone(),
+            ),
+            AppError::NotFound(msg) => (
+                actix_web::http::StatusCode::NOT_FOUND,
+                "NOT_FOUND",
+                msg.clone(),
+            ),
+            AppError::Conflict(msg) => (
+                actix_web::http::StatusCode::CONFLICT,
+                "CONFLICT",
+                msg.clone(),
+            ),
             AppError::DatabaseError(msg) => (
                 actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
                 "DATABASE_ERROR",

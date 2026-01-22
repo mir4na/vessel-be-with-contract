@@ -1,15 +1,21 @@
-use std::sync::Arc;
 use chrono::{Duration, Utc};
-use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
+use rust_decimal::Decimal;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
-use crate::models::{FundingPool, Investment, InvestRequest, FundingPoolResponse, InvestorPortfolio, MitraDashboard, TimelineStatus, InvoiceDashboard};
-use crate::repository::{FundingRepository, InvoiceRepository, TransactionRepository, UserRepository, RiskQuestionnaireRepository};
+use crate::models::{
+    FundingPool, FundingPoolResponse, InvestRequest, Investment, InvestorPortfolio,
+    InvoiceDashboard, MitraDashboard, TimelineStatus,
+};
+use crate::repository::{
+    FundingRepository, InvoiceRepository, RiskQuestionnaireRepository, TransactionRepository,
+    UserRepository,
+};
 
-use super::{EmailService, EscrowService, BlockchainService};
+use super::{BlockchainService, EmailService, EscrowService};
 
 pub struct FundingService {
     funding_repo: Arc<FundingRepository>,
@@ -49,17 +55,29 @@ impl FundingService {
     }
 
     pub async fn create_pool(&self, invoice_id: Uuid) -> AppResult<FundingPool> {
-        let invoice = self.invoice_repo.find_by_id(invoice_id).await?
+        let invoice = self
+            .invoice_repo
+            .find_by_id(invoice_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
 
         // Check if invoice is approved or tokenized
         if invoice.status != "approved" && invoice.status != "tokenized" {
-            return Err(AppError::BadRequest("Invoice must be approved first".to_string()));
+            return Err(AppError::BadRequest(
+                "Invoice must be approved first".to_string(),
+            ));
         }
 
         // Check if pool already exists
-        if self.funding_repo.find_by_invoice(invoice_id).await?.is_some() {
-            return Err(AppError::Conflict("Pool already exists for this invoice".to_string()));
+        if self
+            .funding_repo
+            .find_by_invoice(invoice_id)
+            .await?
+            .is_some()
+        {
+            return Err(AppError::Conflict(
+                "Pool already exists for this invoice".to_string(),
+            ));
         }
 
         // Calculate tranche amounts
@@ -76,24 +94,32 @@ impl FundingService {
         let deadline = Utc::now() + Duration::days(invoice.funding_duration_days as i64);
 
         // Create pool
-        let pool = self.funding_repo.create_pool(
-            invoice_id,
-            target_amount,
-            priority_target,
-            catalyst_target,
-            priority_rate,
-            catalyst_rate,
-            deadline,
-        ).await?;
+        let pool = self
+            .funding_repo
+            .create_pool(
+                invoice_id,
+                target_amount,
+                priority_target,
+                catalyst_target,
+                priority_rate,
+                catalyst_rate,
+                deadline,
+            )
+            .await?;
 
         // Update invoice status to funding
-        self.invoice_repo.update_status(invoice_id, "funding").await?;
+        self.invoice_repo
+            .update_status(invoice_id, "funding")
+            .await?;
 
         Ok(pool)
     }
 
     pub async fn get_pool(&self, id: Uuid) -> AppResult<FundingPoolResponse> {
-        let pool = self.funding_repo.find_by_id(id).await?
+        let pool = self
+            .funding_repo
+            .find_by_id(id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
 
         let invoice = self.invoice_repo.find_by_id(pool.invoice_id).await?;
@@ -101,7 +127,11 @@ impl FundingService {
         self.build_pool_response(pool, invoice)
     }
 
-    pub async fn list_pools(&self, page: i32, per_page: i32) -> AppResult<(Vec<FundingPoolResponse>, i64)> {
+    pub async fn list_pools(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<FundingPoolResponse>, i64)> {
         let (pools, total) = self.funding_repo.find_all(page, per_page).await?;
 
         let mut responses = Vec::new();
@@ -122,18 +152,24 @@ impl FundingService {
     pub async fn invest(&self, investor_id: Uuid, req: InvestRequest) -> AppResult<Investment> {
         // Validate TnC acceptance
         if !req.tnc_accepted {
-            return Err(AppError::ValidationError("Must accept terms and conditions".to_string()));
+            return Err(AppError::ValidationError(
+                "Must accept terms and conditions".to_string(),
+            ));
         }
 
         // Validate tx_hash is provided
         if req.tx_hash.is_empty() {
             return Err(AppError::ValidationError(
-                "Transaction hash is required. Please transfer IDRX to platform wallet first.".to_string()
+                "Transaction hash is required. Please transfer IDRX to platform wallet first."
+                    .to_string(),
             ));
         }
 
         // Get pool
-        let pool = self.funding_repo.find_by_id(req.pool_id).await?
+        let pool = self
+            .funding_repo
+            .find_by_id(req.pool_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
 
         // Check pool status
@@ -148,10 +184,14 @@ impl FundingService {
             // Check catalyst consents
             if let Some(consents) = &req.catalyst_consents {
                 if !consents.all_accepted() {
-                    return Err(AppError::ValidationError("All catalyst consents must be accepted".to_string()));
+                    return Err(AppError::ValidationError(
+                        "All catalyst consents must be accepted".to_string(),
+                    ));
                 }
             } else {
-                return Err(AppError::ValidationError("Catalyst consents required for catalyst tranche".to_string()));
+                return Err(AppError::ValidationError(
+                    "Catalyst consents required for catalyst tranche".to_string(),
+                ));
             }
 
             // Check if catalyst is unlocked
@@ -161,12 +201,16 @@ impl FundingService {
         }
 
         // Get investor
-        let investor = self.user_repo.find_by_id(investor_id).await?
+        let investor = self
+            .user_repo
+            .find_by_id(investor_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Investor not found".to_string()))?;
 
         // Investor must have a wallet address
-        let _investor_wallet = investor.wallet_address.as_ref()
-            .ok_or_else(|| AppError::ValidationError("Investor wallet address not set".to_string()))?;
+        let _investor_wallet = investor.wallet_address.as_ref().ok_or_else(|| {
+            AppError::ValidationError("Investor wallet address not set".to_string())
+        })?;
 
         let amount = Decimal::from_f64(req.amount)
             .ok_or_else(|| AppError::ValidationError("Invalid amount".to_string()))?;
@@ -200,11 +244,17 @@ impl FundingService {
         };
 
         if amount > available {
-            return Err(AppError::BadRequest(format!("Only {} available in {} tranche", available, req.tranche)));
+            return Err(AppError::BadRequest(format!(
+                "Only {} available in {} tranche",
+                available, req.tranche
+            )));
         }
 
         // Calculate expected return
-        let invoice = self.invoice_repo.find_by_id(pool.invoice_id).await?
+        let invoice = self
+            .invoice_repo
+            .find_by_id(pool.invoice_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
 
         let days_until_due = (invoice.due_date - chrono::Utc::now().date_naive()).num_days();
@@ -214,27 +264,32 @@ impl FundingService {
         let expected_return = Decimal::from_f64(amount.to_f64().unwrap_or(0.0) + interest).unwrap();
 
         // Record the on-chain transaction in database for audit trail
-        self.tx_repo.create_blockchain_transaction(
-            investor_id,
-            "investment",
-            amount,
-            &req.tx_hash,
-            verified_transfer.block_number as i64,
-            Some(req.pool_id),
-            Some("pool"),
-            Some(&format!("On-chain IDRX investment in pool {}", req.pool_id)),
-            &verified_transfer.explorer_url,
-        ).await?;
+        self.tx_repo
+            .create_blockchain_transaction(
+                investor_id,
+                "investment",
+                amount,
+                &req.tx_hash,
+                verified_transfer.block_number as i64,
+                Some(req.pool_id),
+                Some("pool"),
+                Some(&format!("On-chain IDRX investment in pool {}", req.pool_id)),
+                &verified_transfer.explorer_url,
+            )
+            .await?;
 
         // Create investment record with verified tx_hash
-        let investment = self.funding_repo.create_investment(
-            req.pool_id,
-            investor_id,
-            amount,
-            expected_return,
-            &req.tranche,
-            &req.tx_hash,
-        ).await?;
+        let investment = self
+            .funding_repo
+            .create_investment(
+                req.pool_id,
+                investor_id,
+                amount,
+                expected_return,
+                &req.tranche,
+                &req.tx_hash,
+            )
+            .await?;
 
         // Update pool funded amounts
         let new_funded = pool.funded_amount + amount;
@@ -244,53 +299,82 @@ impl FundingService {
             (pool.priority_funded + amount, pool.catalyst_funded)
         };
 
-        let investor_count = self.funding_repo.count_investors_in_pool(req.pool_id).await? as i32;
+        let investor_count = self
+            .funding_repo
+            .count_investors_in_pool(req.pool_id)
+            .await? as i32;
 
-        self.funding_repo.update_funded_amount(
-            req.pool_id,
-            new_funded,
-            new_priority_funded,
-            new_catalyst_funded,
-            investor_count,
-        ).await?;
+        self.funding_repo
+            .update_funded_amount(
+                req.pool_id,
+                new_funded,
+                new_priority_funded,
+                new_catalyst_funded,
+                investor_count,
+            )
+            .await?;
 
         // Check if pool is now fully funded
         if new_funded >= pool.target_amount {
             self.funding_repo.set_filled(req.pool_id).await?;
-            self.invoice_repo.update_status(pool.invoice_id, "funded").await?;
+            self.invoice_repo
+                .update_status(pool.invoice_id, "funded")
+                .await?;
 
             // Notify exporter
             if let Some(exporter) = self.user_repo.find_by_id(invoice.exporter_id).await? {
-                let _ = self.email_service.send_pool_funded_notification(
-                    &exporter.email,
-                    &invoice.invoice_number,
-                    pool.target_amount.to_f64().unwrap_or(0.0),
-                ).await;
+                let _ = self
+                    .email_service
+                    .send_pool_funded_notification(
+                        &exporter.email,
+                        &invoice.invoice_number,
+                        pool.target_amount.to_f64().unwrap_or(0.0),
+                    )
+                    .await;
             }
         }
 
         // Send confirmation email with on-chain tx details
-        let _ = self.email_service.send_investment_confirmation(
-            &investor.email,
-            &invoice.invoice_number,
-            amount.to_f64().unwrap_or(0.0),
-            &req.tranche,
-            expected_return.to_f64().unwrap_or(0.0),
-        ).await;
+        let _ = self
+            .email_service
+            .send_investment_confirmation(
+                &investor.email,
+                &invoice.invoice_number,
+                amount.to_f64().unwrap_or(0.0),
+                &req.tranche,
+                expected_return.to_f64().unwrap_or(0.0),
+            )
+            .await;
 
         tracing::info!(
             "Investment recorded: {} IDRX in pool {} by investor {} - viewable at {}",
-            amount, req.pool_id, investor_id, verified_transfer.explorer_url
+            amount,
+            req.pool_id,
+            investor_id,
+            verified_transfer.explorer_url
         );
 
         Ok(investment)
     }
 
     pub async fn get_investor_portfolio(&self, investor_id: Uuid) -> AppResult<InvestorPortfolio> {
-        let (total_funding, total_expected, total_realized, priority_alloc, catalyst_alloc, active_count, completed_count) =
-            self.funding_repo.get_investor_portfolio_stats(investor_id).await?;
+        let (
+            total_funding,
+            total_expected,
+            total_realized,
+            priority_alloc,
+            catalyst_alloc,
+            active_count,
+            completed_count,
+        ) = self
+            .funding_repo
+            .get_investor_portfolio_stats(investor_id)
+            .await?;
 
-        let user = self.user_repo.find_by_id(investor_id).await?
+        let user = self
+            .user_repo
+            .find_by_id(investor_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
         Ok(InvestorPortfolio {
@@ -301,7 +385,7 @@ impl FundingService {
             catalyst_allocation: catalyst_alloc.to_f64().unwrap_or(0.0),
             active_investments: active_count as i32,
             completed_deals: completed_count as i32,
-            available_balance: user.balance_idr.to_f64().unwrap_or(0.0),
+            available_balance: user.balance_idrx.to_f64().unwrap_or(0.0),
         })
     }
 
@@ -319,8 +403,13 @@ impl FundingService {
                 total_financing += amount;
 
                 // Calculate total owed (principal + interest)
-                let interest_rate = invoice.priority_interest_rate.unwrap_or(Decimal::from(10)).to_f64().unwrap_or(10.0);
-                let days_until_due = (invoice.due_date - chrono::Utc::now().date_naive()).num_days();
+                let interest_rate = invoice
+                    .priority_interest_rate
+                    .unwrap_or(Decimal::from(10))
+                    .to_f64()
+                    .unwrap_or(10.0);
+                let days_until_due =
+                    (invoice.due_date - chrono::Utc::now().date_naive()).num_days();
                 let interest = amount * (interest_rate / 100.0) * (days_until_due as f64 / 365.0);
                 let owed = amount + interest;
                 total_owed += owed;
@@ -334,7 +423,14 @@ impl FundingService {
                     due_date: invoice.due_date.and_hms_opt(0, 0, 0).unwrap(),
                     amount,
                     status: invoice.status.clone(),
-                    status_color: if days_until_due > 14 { "green" } else if days_until_due > 0 { "yellow" } else { "red" }.to_string(),
+                    status_color: if days_until_due > 14 {
+                        "green"
+                    } else if days_until_due > 0 {
+                        "yellow"
+                    } else {
+                        "red"
+                    }
+                    .to_string(),
                     days_remaining: days_until_due as i32,
                     funded_amount: amount, // Simplified
                     total_owed: owed,
@@ -362,25 +458,41 @@ impl FundingService {
         })
     }
 
-    fn build_pool_response(&self, pool: FundingPool, invoice: Option<crate::models::Invoice>) -> AppResult<FundingPoolResponse> {
-        let remaining = (pool.target_amount - pool.funded_amount).to_f64().unwrap_or(0.0);
+    fn build_pool_response(
+        &self,
+        pool: FundingPool,
+        invoice: Option<crate::models::Invoice>,
+    ) -> AppResult<FundingPoolResponse> {
+        let remaining = (pool.target_amount - pool.funded_amount)
+            .to_f64()
+            .unwrap_or(0.0);
         let percentage = if pool.target_amount > Decimal::ZERO {
-            (pool.funded_amount / pool.target_amount * Decimal::from(100)).to_f64().unwrap_or(0.0)
+            (pool.funded_amount / pool.target_amount * Decimal::from(100))
+                .to_f64()
+                .unwrap_or(0.0)
         } else {
             0.0
         };
 
-        let priority_remaining = (pool.priority_target - pool.priority_funded).to_f64().unwrap_or(0.0);
-        let catalyst_remaining = (pool.catalyst_target - pool.catalyst_funded).to_f64().unwrap_or(0.0);
+        let priority_remaining = (pool.priority_target - pool.priority_funded)
+            .to_f64()
+            .unwrap_or(0.0);
+        let catalyst_remaining = (pool.catalyst_target - pool.catalyst_funded)
+            .to_f64()
+            .unwrap_or(0.0);
 
         let priority_pct = if pool.priority_target > Decimal::ZERO {
-            (pool.priority_funded / pool.priority_target * Decimal::from(100)).to_f64().unwrap_or(0.0)
+            (pool.priority_funded / pool.priority_target * Decimal::from(100))
+                .to_f64()
+                .unwrap_or(0.0)
         } else {
             0.0
         };
 
         let catalyst_pct = if pool.catalyst_target > Decimal::ZERO {
-            (pool.catalyst_funded / pool.catalyst_target * Decimal::from(100)).to_f64().unwrap_or(0.0)
+            (pool.catalyst_funded / pool.catalyst_target * Decimal::from(100))
+                .to_f64()
+                .unwrap_or(0.0)
         } else {
             0.0
         };

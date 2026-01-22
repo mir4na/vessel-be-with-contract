@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::error::AppResult;
@@ -46,7 +46,9 @@ impl EscrowService {
 
     fn get_blockchain_service(&self) -> AppResult<&Arc<BlockchainService>> {
         self.blockchain_service.as_ref().ok_or_else(|| {
-            crate::error::AppError::BlockchainError("Blockchain service not initialized".to_string())
+            crate::error::AppError::BlockchainError(
+                "Blockchain service not initialized".to_string(),
+            )
         })
     }
 
@@ -62,11 +64,15 @@ impl EscrowService {
         let blockchain = self.get_blockchain_service()?;
 
         // Verify the on-chain transfer
-        let verified = blockchain.verify_investment_transfer(tx_hash, amount).await?;
+        let verified = blockchain
+            .verify_investment_transfer(tx_hash, amount)
+            .await?;
 
         tracing::info!(
             "Verified investment deposit: {} IDRX from {} to platform wallet for pool {}",
-            verified.amount, verified.from, pool_id
+            verified.amount,
+            verified.from,
+            pool_id
         );
 
         Ok(EscrowRecord {
@@ -90,7 +96,9 @@ impl EscrowService {
     ) -> AppResult<String> {
         tracing::info!(
             "Recording escrow: {} IDRX for pool {} from investor {}",
-            amount, pool_id, investor_id
+            amount,
+            pool_id,
+            investor_id
         );
 
         // In the on-chain model, funds are already transferred to platform wallet
@@ -111,15 +119,22 @@ impl EscrowService {
 
         tracing::info!(
             "Releasing {} IDRX from pool {} to exporter {} (wallet: {})",
-            amount, pool_id, exporter_id, exporter_wallet
+            amount,
+            pool_id,
+            exporter_id,
+            exporter_wallet
         );
 
         // Execute on-chain transfer
-        let tx_hash = blockchain.disburse_to_exporter(exporter_wallet, amount, pool_id).await?;
+        let tx_hash = blockchain
+            .disburse_to_exporter(exporter_wallet, amount, pool_id)
+            .await?;
 
         tracing::info!(
             "Disbursement completed: {} - {} IDRX to exporter {}",
-            tx_hash, amount, exporter_id
+            tx_hash,
+            amount,
+            exporter_id
         );
 
         Ok(tx_hash)
@@ -138,15 +153,22 @@ impl EscrowService {
 
         tracing::info!(
             "Returning {} IDRX from pool {} to investor {} (wallet: {})",
-            amount, pool_id, investor_id, investor_wallet
+            amount,
+            pool_id,
+            investor_id,
+            investor_wallet
         );
 
         // Execute on-chain transfer
-        let tx_hash = blockchain.return_to_investor(investor_wallet, amount, pool_id).await?;
+        let tx_hash = blockchain
+            .return_to_investor(investor_wallet, amount, pool_id)
+            .await?;
 
         tracing::info!(
             "Investor return completed: {} - {} IDRX to investor {}",
-            tx_hash, amount, investor_id
+            tx_hash,
+            amount,
+            investor_id
         );
 
         Ok(tx_hash)
@@ -165,15 +187,22 @@ impl EscrowService {
 
         tracing::info!(
             "Refunding {} IDRX from pool {} to investor {} (wallet: {})",
-            amount, pool_id, investor_id, investor_wallet
+            amount,
+            pool_id,
+            investor_id,
+            investor_wallet
         );
 
         // Execute on-chain transfer (same as return, different context)
-        let tx_hash = blockchain.return_to_investor(investor_wallet, amount, pool_id).await?;
+        let tx_hash = blockchain
+            .return_to_investor(investor_wallet, amount, pool_id)
+            .await?;
 
         tracing::info!(
             "Refund completed: {} - {} IDRX to investor {}",
-            tx_hash, amount, investor_id
+            tx_hash,
+            amount,
+            investor_id
         );
 
         Ok(tx_hash)

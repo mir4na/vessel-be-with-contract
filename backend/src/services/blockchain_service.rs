@@ -1,18 +1,18 @@
-use std::sync::Arc;
 use ethers::{
+    contract::abigen,
     prelude::*,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
-    types::{Address, U256, H256},
-    contract::abigen,
+    types::{Address, H256, U256},
 };
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
-use crate::repository::{InvoiceRepository, FundingRepository};
+use crate::repository::{FundingRepository, InvoiceRepository};
 
 use super::PinataService;
 
@@ -77,7 +77,9 @@ impl BlockchainService {
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
 
         let wallet = if !config.private_key.is_empty() {
-            let wallet: LocalWallet = config.private_key.parse()
+            let wallet: LocalWallet = config
+                .private_key
+                .parse()
                 .map_err(|e: WalletError| AppError::BlockchainError(e.to_string()))?;
             Some(wallet.with_chain_id(config.chain_id))
         } else {
@@ -103,20 +105,25 @@ impl BlockchainService {
 
     /// Get IDRX token contract instance
     fn get_idrx_contract(&self) -> AppResult<IERC20<Provider<Http>>> {
-        let contract_addr: Address = self.config.idrx_token_contract_addr.parse()
-            .map_err(|_| AppError::BlockchainError("Invalid IDRX contract address".to_string()))?;
+        let contract_addr: Address =
+            self.config.idrx_token_contract_addr.parse().map_err(|_| {
+                AppError::BlockchainError("Invalid IDRX contract address".to_string())
+            })?;
 
         Ok(IERC20::new(contract_addr, Arc::new(self.provider.clone())))
     }
 
     /// Get IDRX balance for an address
     pub async fn get_idrx_balance(&self, address: &str) -> AppResult<Decimal> {
-        let addr: Address = address.parse()
+        let addr: Address = address
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid address".to_string()))?;
 
         let contract = self.get_idrx_contract()?;
-        let balance: U256 = contract.balance_of(addr).call().await
-            .map_err(|e| AppError::BlockchainError(format!("Failed to get IDRX balance: {}", e)))?;
+        let balance: U256 =
+            contract.balance_of(addr).call().await.map_err(|e| {
+                AppError::BlockchainError(format!("Failed to get IDRX balance: {}", e))
+            })?;
 
         // Convert from token units to Decimal (IDRX has 2 decimals)
         let balance_f64 = balance.as_u128() as f64 / 10f64.powi(self.idrx_decimals as i32);
@@ -125,7 +132,8 @@ impl BlockchainService {
 
     /// Get platform wallet IDRX balance (escrow balance)
     pub async fn get_platform_idrx_balance(&self) -> AppResult<Decimal> {
-        self.get_idrx_balance(&self.config.platform_wallet_address).await
+        self.get_idrx_balance(&self.config.platform_wallet_address)
+            .await
     }
 
     /// Convert Decimal amount to token units (U256)
@@ -143,31 +151,41 @@ impl BlockchainService {
         expected_to: &str,
         expected_amount: Decimal,
     ) -> AppResult<VerifiedTransfer> {
-        let hash: H256 = tx_hash.parse()
+        let hash: H256 = tx_hash
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid transaction hash".to_string()))?;
 
-        let expected_to_addr: Address = expected_to.parse()
+        let expected_to_addr: Address = expected_to
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid recipient address".to_string()))?;
 
         // Get transaction receipt
-        let receipt = self.provider.get_transaction_receipt(hash).await
+        let receipt = self
+            .provider
+            .get_transaction_receipt(hash)
+            .await
             .map_err(|e| AppError::BlockchainError(format!("Failed to get receipt: {}", e)))?
-            .ok_or_else(|| AppError::BlockchainError("Transaction not found or not confirmed".to_string()))?;
+            .ok_or_else(|| {
+                AppError::BlockchainError("Transaction not found or not confirmed".to_string())
+            })?;
 
         // Check transaction succeeded
-        let status = receipt.status.ok_or_else(||
-            AppError::BlockchainError("Transaction status unknown".to_string()))?;
+        let status = receipt
+            .status
+            .ok_or_else(|| AppError::BlockchainError("Transaction status unknown".to_string()))?;
         if status.as_u64() != 1 {
             return Err(AppError::BlockchainError("Transaction failed".to_string()));
         }
 
         // Parse Transfer events from logs
-        let contract_addr: Address = self.config.idrx_token_contract_addr.parse()
-            .map_err(|_| AppError::BlockchainError("Invalid IDRX contract address".to_string()))?;
+        let contract_addr: Address =
+            self.config.idrx_token_contract_addr.parse().map_err(|_| {
+                AppError::BlockchainError("Invalid IDRX contract address".to_string())
+            })?;
 
         // Transfer event signature: Transfer(address,address,uint256)
         let transfer_topic = H256::from_slice(&ethers::utils::keccak256(
-            "Transfer(address,address,uint256)"
+            "Transfer(address,address,uint256)",
         ));
 
         let mut verified_from = String::new();
@@ -176,7 +194,10 @@ impl BlockchainService {
 
         for log in receipt.logs.iter() {
             // Check if log is from IDRX contract and is a Transfer event
-            if log.address == contract_addr && !log.topics.is_empty() && log.topics[0] == transfer_topic {
+            if log.address == contract_addr
+                && !log.topics.is_empty()
+                && log.topics[0] == transfer_topic
+            {
                 // topics[1] = from, topics[2] = to (both padded to 32 bytes)
                 if log.topics.len() >= 3 {
                     let to_addr = Address::from_slice(&log.topics[2].as_bytes()[12..32]);
@@ -187,8 +208,10 @@ impl BlockchainService {
 
                         // Amount is in data field
                         let amount_u256 = U256::from_big_endian(&log.data);
-                        let amount_f64 = amount_u256.as_u128() as f64 / 10f64.powi(self.idrx_decimals as i32);
-                        verified_amount = Decimal::from_f64_retain(amount_f64).unwrap_or(Decimal::ZERO);
+                        let amount_f64 =
+                            amount_u256.as_u128() as f64 / 10f64.powi(self.idrx_decimals as i32);
+                        verified_amount =
+                            Decimal::from_f64_retain(amount_f64).unwrap_or(Decimal::ZERO);
                         found_transfer = true;
                         break;
                     }
@@ -198,7 +221,7 @@ impl BlockchainService {
 
         if !found_transfer {
             return Err(AppError::BlockchainError(
-                "No matching IDRX transfer found to expected recipient".to_string()
+                "No matching IDRX transfer found to expected recipient".to_string(),
             ));
         }
 
@@ -211,9 +234,7 @@ impl BlockchainService {
             )));
         }
 
-        let block_number = receipt.block_number
-            .map(|n| n.as_u64())
-            .unwrap_or(0);
+        let block_number = receipt.block_number.map(|n| n.as_u64()).unwrap_or(0);
 
         Ok(VerifiedTransfer {
             tx_hash: tx_hash.to_string(),
@@ -236,7 +257,8 @@ impl BlockchainService {
             tx_hash,
             &self.config.platform_wallet_address,
             expected_amount,
-        ).await
+        )
+        .await
     }
 
     /// Transfer IDRX from platform wallet to a recipient
@@ -247,14 +269,18 @@ impl BlockchainService {
         amount: Decimal,
         tx_type: OnChainTxType,
     ) -> AppResult<String> {
-        let wallet = self.wallet.as_ref()
-            .ok_or_else(|| AppError::BlockchainError("Platform wallet not configured".to_string()))?;
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
 
-        let to_addr: Address = to_address.parse()
+        let to_addr: Address = to_address
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid recipient address".to_string()))?;
 
-        let contract_addr: Address = self.config.idrx_token_contract_addr.parse()
-            .map_err(|_| AppError::BlockchainError("Invalid IDRX contract address".to_string()))?;
+        let contract_addr: Address =
+            self.config.idrx_token_contract_addr.parse().map_err(|_| {
+                AppError::BlockchainError("Invalid IDRX contract address".to_string())
+            })?;
 
         let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
         let contract = IERC20::new(contract_addr, Arc::new(client));
@@ -263,27 +289,37 @@ impl BlockchainService {
 
         tracing::info!(
             "Transferring {} IDRX to {} for {:?}",
-            amount, to_address, tx_type
+            amount,
+            to_address,
+            tx_type
         );
 
         let tx = contract.transfer(to_addr, amount_units);
-        let pending_tx = tx.send().await
+        let pending_tx = tx
+            .send()
+            .await
             .map_err(|e| AppError::BlockchainError(format!("Transfer failed: {}", e)))?;
 
         let tx_hash = format!("{:?}", pending_tx.tx_hash());
 
         // Wait for confirmation
-        let receipt = pending_tx.await
+        let receipt = pending_tx
+            .await
             .map_err(|e| AppError::BlockchainError(format!("Transaction failed: {}", e)))?
             .ok_or_else(|| AppError::BlockchainError("Transaction dropped".to_string()))?;
 
         if receipt.status.map(|s| s.as_u64()) != Some(1) {
-            return Err(AppError::BlockchainError("Transfer transaction failed".to_string()));
+            return Err(AppError::BlockchainError(
+                "Transfer transaction failed".to_string(),
+            ));
         }
 
         tracing::info!(
             "IDRX transfer completed: {} - {} IDRX to {} (block: {:?})",
-            tx_hash, amount, to_address, receipt.block_number
+            tx_hash,
+            amount,
+            to_address,
+            receipt.block_number
         );
 
         Ok(tx_hash)
@@ -296,8 +332,13 @@ impl BlockchainService {
         amount: Decimal,
         pool_id: Uuid,
     ) -> AppResult<String> {
-        tracing::info!("Disbursing {} IDRX to exporter for pool {}", amount, pool_id);
-        self.transfer_idrx(exporter_wallet, amount, OnChainTxType::Disbursement).await
+        tracing::info!(
+            "Disbursing {} IDRX to exporter for pool {}",
+            amount,
+            pool_id
+        );
+        self.transfer_idrx(exporter_wallet, amount, OnChainTxType::Disbursement)
+            .await
     }
 
     /// Return funds to investor (transfer IDRX from platform to investor)
@@ -308,7 +349,8 @@ impl BlockchainService {
         pool_id: Uuid,
     ) -> AppResult<String> {
         tracing::info!("Returning {} IDRX to investor for pool {}", amount, pool_id);
-        self.transfer_idrx(investor_wallet, amount, OnChainTxType::InvestorReturn).await
+        self.transfer_idrx(investor_wallet, amount, OnChainTxType::InvestorReturn)
+            .await
     }
 
     /// Get all IDRX transfers for an address (for transparency/audit)
@@ -317,14 +359,17 @@ impl BlockchainService {
         address: &str,
         from_block: Option<u64>,
     ) -> AppResult<Vec<serde_json::Value>> {
-        let addr: Address = address.parse()
+        let addr: Address = address
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid address".to_string()))?;
 
-        let contract_addr: Address = self.config.idrx_token_contract_addr.parse()
-            .map_err(|_| AppError::BlockchainError("Invalid IDRX contract address".to_string()))?;
+        let contract_addr: Address =
+            self.config.idrx_token_contract_addr.parse().map_err(|_| {
+                AppError::BlockchainError("Invalid IDRX contract address".to_string())
+            })?;
 
         let transfer_topic = H256::from_slice(&ethers::utils::keccak256(
-            "Transfer(address,address,uint256)"
+            "Transfer(address,address,uint256)",
         ));
 
         // Pad address to 32 bytes for topic filter
@@ -350,10 +395,16 @@ impl BlockchainService {
             .topic1(addr_topic)
             .from_block(from);
 
-        let incoming_logs = self.provider.get_logs(&incoming_filter).await
+        let incoming_logs = self
+            .provider
+            .get_logs(&incoming_filter)
+            .await
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
 
-        let outgoing_logs = self.provider.get_logs(&outgoing_filter).await
+        let outgoing_logs = self
+            .provider
+            .get_logs(&outgoing_filter)
+            .await
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
 
         let mut transfers = Vec::new();
@@ -381,32 +432,46 @@ impl BlockchainService {
     }
 
     pub async fn get_chain_id(&self) -> AppResult<u64> {
-        let chain_id = self.provider.get_chainid().await
+        let chain_id = self
+            .provider
+            .get_chainid()
+            .await
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
         Ok(chain_id.as_u64())
     }
 
     pub async fn get_block_number(&self) -> AppResult<u64> {
-        let block_number = self.provider.get_block_number().await
+        let block_number = self
+            .provider
+            .get_block_number()
+            .await
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
         Ok(block_number.as_u64())
     }
 
     pub async fn get_balance(&self, address: &str) -> AppResult<U256> {
-        let addr: Address = address.parse()
+        let addr: Address = address
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid address".to_string()))?;
 
-        let balance = self.provider.get_balance(addr, None).await
+        let balance = self
+            .provider
+            .get_balance(addr, None)
+            .await
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
 
         Ok(balance)
     }
 
     pub async fn verify_transaction(&self, tx_hash: &str) -> AppResult<bool> {
-        let hash: TxHash = tx_hash.parse()
+        let hash: TxHash = tx_hash
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid transaction hash".to_string()))?;
 
-        let receipt = self.provider.get_transaction_receipt(hash).await
+        let receipt = self
+            .provider
+            .get_transaction_receipt(hash)
+            .await
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
 
         match receipt {
@@ -416,10 +481,14 @@ impl BlockchainService {
     }
 
     pub async fn get_transaction_block(&self, tx_hash: &str) -> AppResult<Option<u64>> {
-        let hash: TxHash = tx_hash.parse()
+        let hash: TxHash = tx_hash
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid transaction hash".to_string()))?;
 
-        let receipt = self.provider.get_transaction_receipt(hash).await
+        let receipt = self
+            .provider
+            .get_transaction_receipt(hash)
+            .await
             .map_err(|e| AppError::BlockchainError(e.to_string()))?;
 
         Ok(receipt.and_then(|r| r.block_number).map(|n| n.as_u64()))
@@ -454,7 +523,9 @@ impl BlockchainService {
         // For now, return a placeholder
         tracing::info!(
             "Would mint NFT for invoice {} to {} with metadata {}",
-            invoice_id, owner_address, metadata_uri
+            invoice_id,
+            owner_address,
+            metadata_uri
         );
 
         // Simulate token ID (in production, get from contract event)
@@ -465,7 +536,10 @@ impl BlockchainService {
     }
 
     pub async fn create_nft_metadata(&self, invoice_id: Uuid) -> AppResult<String> {
-        let invoice = self.invoice_repo.find_by_id(invoice_id).await?
+        let invoice = self
+            .invoice_repo
+            .find_by_id(invoice_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
 
         let metadata = serde_json::json!({
@@ -501,7 +575,8 @@ impl BlockchainService {
             ]
         });
 
-        let metadata_uri = self.pinata_service
+        let metadata_uri = self
+            .pinata_service
             .upload_json(metadata, &format!("vessel-invoice-{}", invoice_id))
             .await?;
 

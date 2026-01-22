@@ -1,13 +1,13 @@
 use actix_web::{
+    body::EitherBody,
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage, HttpResponse,
-    body::EitherBody,
 };
 use futures_util::future::{ok, LocalBoxFuture, Ready};
 use std::sync::Arc;
 
 use crate::config::Config;
-use crate::utils::{verify_token, Claims, ApiResponse};
+use crate::utils::{verify_token, ApiResponse, Claims};
 
 pub struct AuthMiddleware {
     config: Arc<Config>,
@@ -79,18 +79,16 @@ where
                     Err(_) => {
                         let response = HttpResponse::Unauthorized()
                             .json(ApiResponse::<()>::error("Invalid or expired token"));
-                        Box::pin(async move {
-                            Ok(req.into_response(response).map_into_right_body())
-                        })
+                        Box::pin(
+                            async move { Ok(req.into_response(response).map_into_right_body()) },
+                        )
                     }
                 }
             }
             None => {
                 let response = HttpResponse::Unauthorized()
                     .json(ApiResponse::<()>::error("Authorization header missing"));
-                Box::pin(async move {
-                    Ok(req.into_response(response).map_into_right_body())
-                })
+                Box::pin(async move { Ok(req.into_response(response).map_into_right_body()) })
             }
         }
     }
@@ -213,16 +211,12 @@ where
             Some(_) => {
                 let response = HttpResponse::Forbidden()
                     .json(ApiResponse::<()>::error("Admin access required"));
-                Box::pin(async move {
-                    Ok(req.into_response(response).map_into_right_body())
-                })
+                Box::pin(async move { Ok(req.into_response(response).map_into_right_body()) })
             }
             None => {
                 let response = HttpResponse::Unauthorized()
                     .json(ApiResponse::<()>::error("Authentication required"));
-                Box::pin(async move {
-                    Ok(req.into_response(response).map_into_right_body())
-                })
+                Box::pin(async move { Ok(req.into_response(response).map_into_right_body()) })
             }
         }
     }
@@ -280,16 +274,12 @@ where
             Some(_) => {
                 let response = HttpResponse::Forbidden()
                     .json(ApiResponse::<()>::error("Mitra access required"));
-                Box::pin(async move {
-                    Ok(req.into_response(response).map_into_right_body())
-                })
+                Box::pin(async move { Ok(req.into_response(response).map_into_right_body()) })
             }
             None => {
                 let response = HttpResponse::Unauthorized()
                     .json(ApiResponse::<()>::error("Authentication required"));
-                Box::pin(async move {
-                    Ok(req.into_response(response).map_into_right_body())
-                })
+                Box::pin(async move { Ok(req.into_response(response).map_into_right_body()) })
             }
         }
     }

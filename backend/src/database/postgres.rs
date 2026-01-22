@@ -1,6 +1,6 @@
+use anyhow::Result;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tracing::info;
-use anyhow::Result;
 
 use crate::config::Config;
 

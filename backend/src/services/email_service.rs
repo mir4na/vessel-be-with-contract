@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use lettre::{
-    Message, SmtpTransport, Transport,
-    transport::smtp::authentication::Credentials,
     message::{header::ContentType, Mailbox},
+    transport::smtp::authentication::Credentials,
+    Message, SmtpTransport, Transport,
 };
+use std::sync::Arc;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
@@ -23,10 +23,14 @@ impl EmailService {
             return Ok(());
         }
 
-        let from_mailbox: Mailbox = self.config.smtp_from.parse()
-            .unwrap_or_else(|_| format!("VESSEL <{}>", self.config.smtp_username).parse().unwrap());
+        let from_mailbox: Mailbox = self.config.smtp_from.parse().unwrap_or_else(|_| {
+            format!("VESSEL <{}>", self.config.smtp_username)
+                .parse()
+                .unwrap()
+        });
 
-        let to_mailbox: Mailbox = to.parse()
+        let to_mailbox: Mailbox = to
+            .parse()
             .map_err(|_| AppError::ValidationError("Invalid email address".to_string()))?;
 
         let email = Message::builder()
@@ -48,7 +52,8 @@ impl EmailService {
             .port(self.config.smtp_port)
             .build();
 
-        mailer.send(&email)
+        mailer
+            .send(&email)
             .map_err(|e| AppError::EmailError(e.to_string()))?;
 
         tracing::info!("Email sent to {}", to);
@@ -75,8 +80,7 @@ impl EmailService {
             </body>
             </html>
             "#,
-            invoice_number,
-            amount
+            invoice_number, amount
         );
 
         self.send_email(to, subject, &body).await
@@ -108,16 +112,17 @@ impl EmailService {
             </body>
             </html>
             "#,
-            invoice_number,
-            amount,
-            tranche,
-            expected_return
+            invoice_number, amount, tranche, expected_return
         );
 
         self.send_email(to, subject, &body).await
     }
 
-    pub async fn send_mitra_approval_notification(&self, to: &str, company_name: &str) -> AppResult<()> {
+    pub async fn send_mitra_approval_notification(
+        &self,
+        to: &str,
+        company_name: &str,
+    ) -> AppResult<()> {
         let subject = "VESSEL - Mitra Application Approved!";
         let body = format!(
             r#"

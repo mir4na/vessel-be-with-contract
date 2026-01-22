@@ -2,7 +2,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
-use crate::models::{MitraApplication, MitraApplyRequest, MitraStatusResponse, MitraDocumentsStatus};
+use crate::models::{
+    MitraApplication, MitraApplyRequest, MitraDocumentsStatus, MitraStatusResponse,
+};
 use crate::repository::{MitraRepository, UserRepository};
 
 use super::{EmailService, PinataService};
@@ -29,11 +31,17 @@ impl MitraService {
         }
     }
 
-    pub async fn apply(&self, user_id: Uuid, req: MitraApplyRequest) -> AppResult<MitraApplication> {
+    pub async fn apply(
+        &self,
+        user_id: Uuid,
+        req: MitraApplyRequest,
+    ) -> AppResult<MitraApplication> {
         // Check if user already has an application
         if let Some(existing) = self.mitra_repo.find_by_user(user_id).await? {
             if existing.status == "pending" {
-                return Err(AppError::Conflict("Application already pending".to_string()));
+                return Err(AppError::Conflict(
+                    "Application already pending".to_string(),
+                ));
             }
             if existing.status == "approved" {
                 return Err(AppError::Conflict("Already approved as mitra".to_string()));
@@ -41,19 +49,22 @@ impl MitraService {
         }
 
         // Create application
-        let application = self.mitra_repo.create(
-            user_id,
-            &req.company_name,
-            req.company_type.as_deref().unwrap_or("PT"),
-            &req.npwp,
-            &req.annual_revenue,
-            req.address.as_deref(),
-            req.business_description.as_deref(),
-            req.website_url.as_deref(),
-            req.year_founded,
-            req.key_products.as_deref(),
-            req.export_markets.as_deref(),
-        ).await?;
+        let application = self
+            .mitra_repo
+            .create(
+                user_id,
+                &req.company_name,
+                req.company_type.as_deref().unwrap_or("PT"),
+                &req.npwp,
+                &req.annual_revenue,
+                req.address.as_deref(),
+                req.business_description.as_deref(),
+                req.website_url.as_deref(),
+                req.year_founded,
+                req.key_products.as_deref(),
+                req.export_markets.as_deref(),
+            )
+            .await?;
 
         Ok(application)
     }
@@ -102,26 +113,50 @@ impl MitraService {
         file_data: Vec<u8>,
         file_name: &str,
     ) -> AppResult<MitraApplication> {
-        let application = self.mitra_repo.find_by_user(user_id).await?
+        let application = self
+            .mitra_repo
+            .find_by_user(user_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("No mitra application found".to_string()))?;
 
         if application.status != "pending" {
-            return Err(AppError::BadRequest("Cannot modify approved/rejected application".to_string()));
+            return Err(AppError::BadRequest(
+                "Cannot modify approved/rejected application".to_string(),
+            ));
         }
 
         // Upload to IPFS
-        let file_url = self.pinata_service.upload_file(file_data, file_name).await?;
+        let file_url = self
+            .pinata_service
+            .upload_file(file_data, file_name)
+            .await?;
 
         // Update application
-        self.mitra_repo.update_document(application.id, document_type, &file_url).await
+        self.mitra_repo
+            .update_document(application.id, document_type, &file_url)
+            .await
     }
 
-    pub async fn get_pending_applications(&self, page: i32, per_page: i32) -> AppResult<(Vec<MitraApplication>, i64)> {
+    pub async fn get_pending_applications(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<MitraApplication>, i64)> {
         self.mitra_repo.find_pending(page, per_page).await
     }
 
+    pub async fn get_all_applications(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<MitraApplication>, i64)> {
+        self.mitra_repo.find_all(page, per_page).await
+    }
+
     pub async fn get_application(&self, id: Uuid) -> AppResult<MitraApplication> {
-        self.mitra_repo.find_by_id(id).await?
+        self.mitra_repo
+            .find_by_id(id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Application not found".to_string()))
     }
 
@@ -129,32 +164,48 @@ impl MitraService {
         let application = self.get_application(id).await?;
 
         if application.status != "pending" {
-            return Err(AppError::BadRequest("Application is not pending".to_string()));
+            return Err(AppError::BadRequest(
+                "Application is not pending".to_string(),
+            ));
         }
 
         // Approve application
         let approved = self.mitra_repo.approve(id, admin_id).await?;
 
         // Update user role to mitra
-        self.user_repo.update_role(application.user_id, "mitra").await?;
-        self.user_repo.update_member_status(application.user_id, "member_mitra").await?;
+        self.user_repo
+            .update_role(application.user_id, "mitra")
+            .await?;
+        self.user_repo
+            .update_member_status(application.user_id, "member_mitra")
+            .await?;
+        self.user_repo
+            .set_profile_completed(application.user_id, true)
+            .await?;
 
         // Send notification email
         if let Some(user) = self.user_repo.find_by_id(application.user_id).await? {
-            let _ = self.email_service.send_mitra_approval_notification(
-                &user.email,
-                &approved.company_name,
-            ).await;
+            let _ = self
+                .email_service
+                .send_mitra_approval_notification(&user.email, &approved.company_name)
+                .await;
         }
 
         Ok(approved)
     }
 
-    pub async fn reject(&self, id: Uuid, admin_id: Uuid, reason: &str) -> AppResult<MitraApplication> {
+    pub async fn reject(
+        &self,
+        id: Uuid,
+        admin_id: Uuid,
+        reason: &str,
+    ) -> AppResult<MitraApplication> {
         let application = self.get_application(id).await?;
 
         if application.status != "pending" {
-            return Err(AppError::BadRequest("Application is not pending".to_string()));
+            return Err(AppError::BadRequest(
+                "Application is not pending".to_string(),
+            ));
         }
 
         self.mitra_repo.reject(id, admin_id, reason).await

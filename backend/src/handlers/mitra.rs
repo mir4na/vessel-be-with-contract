@@ -3,10 +3,10 @@ use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
 use uuid::Uuid;
 
-use crate::error::{AppError, AppResult};
-use crate::models::{MitraApplyRequest, CreateVaPaymentRequest};
-use crate::utils::{ApiResponse, Claims};
 use super::AppState;
+use crate::error::{AppError, AppResult};
+use crate::models::{MitraApplication, MitraApplyRequest};
+use crate::utils::{ApiResponse, Claims};
 
 fn get_user_id(req: &HttpRequest) -> AppResult<Uuid> {
     req.extensions()
@@ -22,18 +22,24 @@ pub async fn apply(
     body: web::Json<MitraApplyRequest>,
 ) -> AppResult<HttpResponse> {
     let user_id = get_user_id(&req)?;
-    let application = state.mitra_service.apply(user_id, body.into_inner()).await?;
-    Ok(HttpResponse::Created().json(ApiResponse::success(application, "Mitra application submitted successfully")))
+    let application = state
+        .mitra_service
+        .apply(user_id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(ApiResponse::success(
+        application,
+        "Mitra application submitted successfully",
+    )))
 }
 
 /// GET /api/v1/user/mitra/status
-pub async fn get_status(
-    state: web::Data<AppState>,
-    req: HttpRequest,
-) -> AppResult<HttpResponse> {
+pub async fn get_status(state: web::Data<AppState>, req: HttpRequest) -> AppResult<HttpResponse> {
     let user_id = get_user_id(&req)?;
     let status = state.mitra_service.get_status(user_id).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::success(status, "Mitra status retrieved successfully")))
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        status,
+        "Mitra status retrieved successfully",
+    )))
 }
 
 /// POST /api/v1/user/mitra/documents
@@ -75,9 +81,12 @@ pub async fn upload_document(
         }
     }
 
-    let file_data = file_data.ok_or_else(|| AppError::ValidationError("File is required".to_string()))?;
-    let file_name = file_name.ok_or_else(|| AppError::ValidationError("Filename is required".to_string()))?;
-    let document_type = document_type.ok_or_else(|| AppError::ValidationError("Document type is required".to_string()))?;
+    let file_data =
+        file_data.ok_or_else(|| AppError::ValidationError("File is required".to_string()))?;
+    let file_name =
+        file_name.ok_or_else(|| AppError::ValidationError("Filename is required".to_string()))?;
+    let document_type = document_type
+        .ok_or_else(|| AppError::ValidationError("Document type is required".to_string()))?;
 
     // Validate document type
     let valid_types = ["nib", "akta_pendirian", "ktp_direktur"];
@@ -88,14 +97,15 @@ pub async fn upload_document(
         )));
     }
 
-    let application = state.mitra_service.upload_document(
-        user_id,
-        &document_type,
-        file_data,
-        &file_name,
-    ).await?;
+    let application = state
+        .mitra_service
+        .upload_document(user_id, &document_type, file_data, &file_name)
+        .await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(application, "Document uploaded successfully")))
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        application,
+        "Document uploaded successfully",
+    )))
 }
 
 /// GET /api/v1/mitra/invoices/active
@@ -126,82 +136,66 @@ pub async fn get_repayment_breakdown(
             "platform_fee": 0.0,
             "total_repayment": 0.0
         }),
-        "Repayment breakdown retrieved"
-    )))
-}
-
-/// GET /api/v1/mitra/payment-methods
-pub async fn get_va_payment_methods() -> AppResult<HttpResponse> {
-    let methods = crate::models::get_va_payment_methods();
-    Ok(HttpResponse::Ok().json(ApiResponse::success(methods, "Payment methods retrieved")))
-}
-
-/// POST /api/v1/mitra/repayment/va
-pub async fn create_va_payment(
-    _state: web::Data<AppState>,
-    req: HttpRequest,
-    body: web::Json<CreateVaPaymentRequest>,
-) -> AppResult<HttpResponse> {
-    let _user_id = get_user_id(&req)?;
-    // Stub
-    Ok(HttpResponse::Created().json(ApiResponse::success(
-        serde_json::json!({
-            "pool_id": body.pool_id,
-            "bank_code": body.bank_code,
-            "va_number": "8888123456789",
-            "status": "pending"
-        }),
-        "VA payment created"
-    )))
-}
-
-/// GET /api/v1/mitra/repayment/va/{id}
-pub async fn get_va_payment_status(
-    _state: web::Data<AppState>,
-    path: web::Path<Uuid>,
-) -> AppResult<HttpResponse> {
-    let payment_id = path.into_inner();
-    // Stub
-    Ok(HttpResponse::Ok().json(ApiResponse::success(
-        serde_json::json!({
-            "payment_id": payment_id,
-            "status": "pending"
-        }),
-        "VA payment status retrieved"
-    )))
-}
-
-/// POST /api/v1/mitra/repayment/va/{id}/simulate-pay
-pub async fn simulate_va_payment(
-    _state: web::Data<AppState>,
-    path: web::Path<Uuid>,
-) -> AppResult<HttpResponse> {
-    let payment_id = path.into_inner();
-    // Stub
-    Ok(HttpResponse::Ok().json(ApiResponse::success(
-        serde_json::json!({
-            "payment_id": payment_id,
-            "status": "paid",
-            "message": "Payment simulated"
-        }),
-        "VA payment simulated"
+        "Repayment breakdown retrieved",
     )))
 }
 
 // ============ Admin Mitra Endpoints ============
+
+#[derive(serde::Serialize)]
+struct PendingApplicationsResponse {
+    applications: Vec<MitraApplication>,
+    total: i64,
+    page: i32,
+    per_page: i32,
+}
 
 /// GET /api/v1/admin/mitra/pending
 pub async fn get_pending_applications(
     state: web::Data<AppState>,
     query: web::Query<PaginationQuery>,
 ) -> AppResult<HttpResponse> {
-    let (applications, total) = state.mitra_service.get_pending_applications(
-        query.page.unwrap_or(1),
-        query.per_page.unwrap_or(10),
-    ).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::paginated(applications, total, query.page.unwrap_or(1), query.per_page.unwrap_or(10))))
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(10);
+    let (applications, total) = state
+        .mitra_service
+        .get_pending_applications(page, per_page)
+        .await?;
+
+    let response = PendingApplicationsResponse {
+        applications,
+        total,
+        page,
+        per_page,
+    };
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        response,
+        "Pending applications retrieved",
+    )))
 }
 
+/// GET /api/v1/admin/mitra/all
+pub async fn get_all_applications(
+    state: web::Data<AppState>,
+    query: web::Query<PaginationQuery>,
+) -> AppResult<HttpResponse> {
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(10);
+    let (applications, total) = state
+        .mitra_service
+        .get_all_applications(page, per_page)
+        .await?;
+
+    let response = PendingApplicationsResponse {
+        applications,
+        total,
+        page,
+        per_page,
+    };
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(response, "All applications retrieved")))
+}
 /// GET /api/v1/admin/mitra/{id}
 pub async fn get_application(
     state: web::Data<AppState>,
@@ -220,8 +214,14 @@ pub async fn approve(
 ) -> AppResult<HttpResponse> {
     let admin_id = get_user_id(&req)?;
     let application_id = path.into_inner();
-    let application = state.mitra_service.approve(application_id, admin_id).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::success(application, "Mitra application approved")))
+    let application = state
+        .mitra_service
+        .approve(application_id, admin_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        application,
+        "Mitra application approved",
+    )))
 }
 
 /// POST /api/v1/admin/mitra/{id}/reject
@@ -233,8 +233,14 @@ pub async fn reject(
 ) -> AppResult<HttpResponse> {
     let admin_id = get_user_id(&req)?;
     let application_id = path.into_inner();
-    let application = state.mitra_service.reject(application_id, admin_id, &body.reason).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::success(application, "Mitra application rejected")))
+    let application = state
+        .mitra_service
+        .reject(application_id, admin_id, &body.reason)
+        .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        application,
+        "Mitra application rejected",
+    )))
 }
 
 #[derive(serde::Deserialize)]

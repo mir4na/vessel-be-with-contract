@@ -1,13 +1,16 @@
-use std::sync::Arc;
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
-use crate::models::{Invoice, InvoiceDocument, CreateInvoiceFundingRequest, AdminGradeSuggestionResponse, RepeatBuyerCheckResponse};
-use crate::repository::{InvoiceRepository, FundingRepository, UserRepository, MitraRepository};
+use crate::models::{
+    AdminGradeSuggestionResponse, CreateInvoiceFundingRequest, Invoice, InvoiceDocument,
+    RepeatBuyerCheckResponse,
+};
+use crate::repository::{FundingRepository, InvoiceRepository, MitraRepository, UserRepository};
 
 use super::PinataService;
 
@@ -45,16 +48,23 @@ impl InvoiceService {
         req: CreateInvoiceFundingRequest,
     ) -> AppResult<Invoice> {
         // Check if mitra is approved
-        let mitra = self.mitra_repo.find_by_user(exporter_id).await?
+        let mitra = self
+            .mitra_repo
+            .find_by_user(exporter_id)
+            .await?
             .ok_or_else(|| AppError::Forbidden("Must be an approved mitra".to_string()))?;
 
         if mitra.status != "approved" {
-            return Err(AppError::Forbidden("Mitra application not yet approved".to_string()));
+            return Err(AppError::Forbidden(
+                "Mitra application not yet approved".to_string(),
+            ));
         }
 
         // Validate data confirmation
         if !req.data_confirmation {
-            return Err(AppError::ValidationError("Must confirm data accuracy".to_string()));
+            return Err(AppError::ValidationError(
+                "Must confirm data accuracy".to_string(),
+            ));
         }
 
         // Parse due date
@@ -65,21 +75,26 @@ impl InvoiceService {
         let amount = Decimal::from_f64(req.idr_amount)
             .ok_or_else(|| AppError::ValidationError("Invalid amount".to_string()))?;
 
-        let invoice = self.invoice_repo.create(
-            exporter_id,
-            &req.buyer_company_name,
-            &req.buyer_country,
-            Some(&req.buyer_email),
-            &req.invoice_number,
-            "IDR",
-            amount,
-            chrono::Utc::now().date_naive(),
-            due_date,
-            req.description.as_deref(),
-        ).await?;
+        let invoice = self
+            .invoice_repo
+            .create(
+                exporter_id,
+                &req.buyer_company_name,
+                &req.buyer_country,
+                Some(&req.buyer_email),
+                &req.invoice_number,
+                "IDR",
+                amount,
+                chrono::Utc::now().date_naive(),
+                due_date,
+                req.description.as_deref(),
+            )
+            .await?;
 
         // Update with additional fields
-        self.invoice_repo.set_repeat_buyer(invoice.id, req.is_repeat_buyer).await?;
+        self.invoice_repo
+            .set_repeat_buyer(invoice.id, req.is_repeat_buyer)
+            .await?;
 
         // Update interest rates
         let priority_rate = Decimal::from_f64(req.priority_interest_rate)
@@ -87,24 +102,40 @@ impl InvoiceService {
         let catalyst_rate = Decimal::from_f64(req.catalyst_interest_rate)
             .ok_or_else(|| AppError::ValidationError("Invalid catalyst rate".to_string()))?;
 
-        self.invoice_repo.update_interest_rates(invoice.id, priority_rate, catalyst_rate).await?;
+        self.invoice_repo
+            .update_interest_rates(invoice.id, priority_rate, catalyst_rate)
+            .await?;
 
         // Submit for review
-        self.invoice_repo.update_status(invoice.id, "pending_review").await?;
+        self.invoice_repo
+            .update_status(invoice.id, "pending_review")
+            .await?;
 
-        self.invoice_repo.find_by_id(invoice.id).await?
+        self.invoice_repo
+            .find_by_id(invoice.id)
+            .await?
             .ok_or_else(|| AppError::InternalError("Failed to fetch created invoice".to_string()))
     }
 
     pub async fn get_invoice(&self, id: Uuid) -> AppResult<Invoice> {
-        let invoice = self.invoice_repo.find_by_id(id).await?
+        let invoice = self
+            .invoice_repo
+            .find_by_id(id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
 
         Ok(invoice)
     }
 
-    pub async fn list_by_exporter(&self, exporter_id: Uuid, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
-        self.invoice_repo.find_by_exporter(exporter_id, page, per_page).await
+    pub async fn list_by_exporter(
+        &self,
+        exporter_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Invoice>, i64)> {
+        self.invoice_repo
+            .find_by_exporter(exporter_id, page, per_page)
+            .await
     }
 
     pub async fn list_fundable(&self, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
@@ -112,11 +143,15 @@ impl InvoiceService {
     }
 
     pub async fn list_pending(&self, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
-        self.invoice_repo.find_by_status("pending_review", page, per_page).await
+        self.invoice_repo
+            .find_by_status("pending_review", page, per_page)
+            .await
     }
 
     pub async fn list_approved(&self, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
-        self.invoice_repo.find_by_status("approved", page, per_page).await
+        self.invoice_repo
+            .find_by_status("approved", page, per_page)
+            .await
     }
 
     pub async fn approve(
@@ -129,7 +164,9 @@ impl InvoiceService {
         let invoice = self.get_invoice(id).await?;
 
         if invoice.status != "pending_review" {
-            return Err(AppError::BadRequest("Invoice is not pending review".to_string()));
+            return Err(AppError::BadRequest(
+                "Invoice is not pending review".to_string(),
+            ));
         }
 
         // Calculate grade score
@@ -148,7 +185,9 @@ impl InvoiceService {
         };
 
         // Update grade
-        self.invoice_repo.update_grade(id, grade, grade_score, funding_limit).await?;
+        self.invoice_repo
+            .update_grade(id, grade, grade_score, funding_limit)
+            .await?;
 
         // Update interest rates if provided
         if let (Some(pr), Some(cr)) = (priority_rate, catalyst_rate) {
@@ -156,7 +195,9 @@ impl InvoiceService {
                 .ok_or_else(|| AppError::ValidationError("Invalid priority rate".to_string()))?;
             let catalyst = Decimal::from_f64(cr)
                 .ok_or_else(|| AppError::ValidationError("Invalid catalyst rate".to_string()))?;
-            self.invoice_repo.update_interest_rates(id, priority, catalyst).await?;
+            self.invoice_repo
+                .update_interest_rates(id, priority, catalyst)
+                .await?;
         }
 
         // Update status to approved
@@ -167,7 +208,9 @@ impl InvoiceService {
         let invoice = self.get_invoice(id).await?;
 
         if invoice.status != "pending_review" {
-            return Err(AppError::BadRequest("Invoice is not pending review".to_string()));
+            return Err(AppError::BadRequest(
+                "Invoice is not pending review".to_string(),
+            ));
         }
 
         self.invoice_repo.update_status(id, "rejected").await
@@ -178,7 +221,13 @@ impl InvoiceService {
 
         // Calculate country risk score
         let country_score = self.calculate_country_score(&invoice.buyer_country);
-        let country_risk = if country_score >= 30 { "low" } else if country_score >= 20 { "medium" } else { "high" };
+        let country_risk = if country_score >= 30 {
+            "low"
+        } else if country_score >= 20 {
+            "medium"
+        } else {
+            "high"
+        };
 
         // Calculate history score
         let history_score = if invoice.is_repeat_buyer { 30 } else { 0 };
@@ -215,8 +264,15 @@ impl InvoiceService {
         })
     }
 
-    pub async fn check_repeat_buyer(&self, exporter_id: Uuid, buyer_name: &str) -> AppResult<RepeatBuyerCheckResponse> {
-        let count = self.invoice_repo.count_by_buyer_name(exporter_id, buyer_name).await?;
+    pub async fn check_repeat_buyer(
+        &self,
+        exporter_id: Uuid,
+        buyer_name: &str,
+    ) -> AppResult<RepeatBuyerCheckResponse> {
+        let count = self
+            .invoice_repo
+            .count_by_buyer_name(exporter_id, buyer_name)
+            .await?;
 
         let is_repeat = count > 0;
         let funding_limit = if is_repeat { 100.0 } else { 60.0 };
@@ -241,35 +297,73 @@ impl InvoiceService {
         file_data: Vec<u8>,
     ) -> AppResult<InvoiceDocument> {
         // Upload to IPFS
-        let file_url = self.pinata_service.upload_file(file_data.clone(), file_name).await?;
+        let file_url = self
+            .pinata_service
+            .upload_file(file_data.clone(), file_name)
+            .await?;
 
         // Calculate hash
         let file_hash = format!("{:x}", md5::compute(&file_data));
 
         // Create document record
-        self.invoice_repo.create_document(
-            invoice_id,
-            document_type,
-            file_name,
-            &file_url,
-            &file_hash,
-            file_data.len() as i32,
-        ).await
+        self.invoice_repo
+            .create_document(
+                invoice_id,
+                document_type,
+                file_name,
+                &file_url,
+                &file_hash,
+                file_data.len() as i32,
+            )
+            .await
     }
 
     pub async fn get_documents(&self, invoice_id: Uuid) -> AppResult<Vec<InvoiceDocument>> {
-        self.invoice_repo.find_documents_by_invoice(invoice_id).await
+        self.invoice_repo
+            .find_documents_by_invoice(invoice_id)
+            .await
     }
 
     fn calculate_country_score(&self, country: &str) -> i32 {
         // Tier 1 countries (low risk)
-        let tier1 = vec!["USA", "Germany", "Japan", "United Kingdom", "France", "Switzerland", "Netherlands", "Australia", "Canada", "Singapore", "South Korea"];
+        let tier1 = vec![
+            "USA",
+            "Germany",
+            "Japan",
+            "United Kingdom",
+            "France",
+            "Switzerland",
+            "Netherlands",
+            "Australia",
+            "Canada",
+            "Singapore",
+            "South Korea",
+        ];
         // Tier 2 countries (medium risk)
-        let tier2 = vec!["China", "India", "Brazil", "Mexico", "Thailand", "Malaysia", "Vietnam", "Philippines", "Indonesia", "Turkey", "Saudi Arabia", "UAE"];
+        let tier2 = vec![
+            "China",
+            "India",
+            "Brazil",
+            "Mexico",
+            "Thailand",
+            "Malaysia",
+            "Vietnam",
+            "Philippines",
+            "Indonesia",
+            "Turkey",
+            "Saudi Arabia",
+            "UAE",
+        ];
 
-        if tier1.iter().any(|c| country.to_lowercase().contains(&c.to_lowercase())) {
+        if tier1
+            .iter()
+            .any(|c| country.to_lowercase().contains(&c.to_lowercase()))
+        {
             35 // High score for tier 1
-        } else if tier2.iter().any(|c| country.to_lowercase().contains(&c.to_lowercase())) {
+        } else if tier2
+            .iter()
+            .any(|c| country.to_lowercase().contains(&c.to_lowercase()))
+        {
             25 // Medium score for tier 2
         } else {
             15 // Lower score for tier 3

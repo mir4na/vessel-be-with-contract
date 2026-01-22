@@ -21,8 +21,8 @@ pub fn generate_otp() -> String {
 
 /// Generate a random token for various purposes
 pub fn generate_random_token() -> String {
-    use rand::Rng;
     use ethers::utils::hex;
+    use rand::Rng;
     let mut rng = rand::thread_rng();
     let bytes: [u8; 32] = rng.gen();
     hex::encode(bytes)
@@ -49,5 +49,13 @@ pub fn generate_va_number(bank_code: &str, user_id: &str) -> String {
         _ => "8000",
     };
 
-    format!("{}{}{}", prefix, random_part, user_suffix.chars().filter(|c| c.is_numeric()).collect::<String>())
+    format!(
+        "{}{}{}",
+        prefix,
+        random_part,
+        user_suffix
+            .chars()
+            .filter(|c| c.is_numeric())
+            .collect::<String>()
+    )
 }

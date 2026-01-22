@@ -1,10 +1,10 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use uuid::Uuid;
 
+use super::AppState;
 use crate::error::{AppError, AppResult};
 use crate::models::InvestRequest;
 use crate::utils::{ApiResponse, Claims};
-use super::AppState;
 
 fn get_user_id(req: &HttpRequest) -> AppResult<Uuid> {
     req.extensions()
@@ -21,7 +21,10 @@ pub async fn create_pool(
 ) -> AppResult<HttpResponse> {
     let invoice_id = path.into_inner();
     let pool = state.funding_service.create_pool(invoice_id).await?;
-    Ok(HttpResponse::Created().json(ApiResponse::success(pool, "Funding pool created successfully")))
+    Ok(HttpResponse::Created().json(ApiResponse::success(
+        pool,
+        "Funding pool created successfully",
+    )))
 }
 
 /// GET /api/v1/pools
@@ -29,11 +32,16 @@ pub async fn list_pools(
     state: web::Data<AppState>,
     query: web::Query<PoolListQuery>,
 ) -> AppResult<HttpResponse> {
-    let (pools, total) = state.funding_service.list_pools(
+    let (pools, total) = state
+        .funding_service
+        .list_pools(query.page.unwrap_or(1), query.per_page.unwrap_or(10))
+        .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::paginated(
+        pools,
+        total,
         query.page.unwrap_or(1),
         query.per_page.unwrap_or(10),
-    ).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::paginated(pools, total, query.page.unwrap_or(1), query.per_page.unwrap_or(10))))
+    )))
 }
 
 /// GET /api/v1/pools/{id}
@@ -51,11 +59,16 @@ pub async fn get_marketplace(
     state: web::Data<AppState>,
     query: web::Query<MarketplaceQuery>,
 ) -> AppResult<HttpResponse> {
-    let (pools, total) = state.funding_service.list_pools(
+    let (pools, total) = state
+        .funding_service
+        .list_pools(query.page.unwrap_or(1), query.per_page.unwrap_or(10))
+        .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::paginated(
+        pools,
+        total,
         query.page.unwrap_or(1),
         query.per_page.unwrap_or(10),
-    ).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::paginated(pools, total, query.page.unwrap_or(1), query.per_page.unwrap_or(10))))
+    )))
 }
 
 /// GET /api/v1/marketplace/{id}/detail
@@ -75,7 +88,11 @@ pub async fn calculate_investment(
 ) -> AppResult<HttpResponse> {
     // Simple calculation stub
     let data = body.into_inner();
-    let interest_rate = if data.tranche == "priority" { 0.08 } else { 0.12 };
+    let interest_rate = if data.tranche == "priority" {
+        0.08
+    } else {
+        0.12
+    };
     let expected_return = data.amount * interest_rate;
 
     Ok(HttpResponse::Ok().json(ApiResponse::success(
@@ -87,7 +104,7 @@ pub async fn calculate_investment(
             "tranche": data.tranche,
             "tenor_days": 30
         }),
-        "Investment calculated"
+        "Investment calculated",
     )))
 }
 
@@ -98,7 +115,10 @@ pub async fn invest(
     body: web::Json<InvestRequest>,
 ) -> AppResult<HttpResponse> {
     let user_id = get_user_id(&req)?;
-    let investment = state.funding_service.invest(user_id, body.into_inner()).await?;
+    let investment = state
+        .funding_service
+        .invest(user_id, body.into_inner())
+        .await?;
     Ok(HttpResponse::Created().json(ApiResponse::success(investment, "Investment initiated")))
 }
 
@@ -111,7 +131,7 @@ pub async fn confirm_investment(
     // Stub - investment confirmation handled in invest
     Ok(HttpResponse::Ok().json(ApiResponse::success(
         serde_json::json!({ "investment_id": body.investment_id }),
-        "Investment confirmed"
+        "Investment confirmed",
     )))
 }
 
@@ -132,7 +152,10 @@ pub async fn get_portfolio(
     req: HttpRequest,
 ) -> AppResult<HttpResponse> {
     let user_id = get_user_id(&req)?;
-    let portfolio = state.funding_service.get_investor_portfolio(user_id).await?;
+    let portfolio = state
+        .funding_service
+        .get_investor_portfolio(user_id)
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::success(portfolio, "Portfolio retrieved")))
 }
 
@@ -153,7 +176,9 @@ pub async fn exporter_disbursement(
     _body: web::Json<ExporterDisbursementRequest>,
 ) -> AppResult<HttpResponse> {
     // Stub
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("Disbursement request received")))
+    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message(
+        "Disbursement request received",
+    )))
 }
 
 /// GET /api/v1/mitra/dashboard
@@ -196,7 +221,9 @@ pub async fn close_pool_and_notify(
     _path: web::Path<Uuid>,
 ) -> AppResult<HttpResponse> {
     // Stub
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("Pool closed and investors notified")))
+    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message(
+        "Pool closed and investors notified",
+    )))
 }
 
 /// POST /api/v1/admin/invoices/{id}/repay
