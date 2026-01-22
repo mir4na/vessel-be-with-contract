@@ -73,18 +73,20 @@ async fn test_register_mitra_success() {
         .expect("Failed to generate OTP token");
 
     // CLEANUP START (Ensure clear state)
-    sqlx::query!("DELETE FROM otp_codes WHERE email = $1", email)
+    sqlx::query("DELETE FROM otp_codes WHERE email = $1")
+        .bind(email)
         .execute(&pool)
         .await
         .ok();
-    sqlx::query!("DELETE FROM users WHERE email = $1", email)
+    sqlx::query("DELETE FROM users WHERE email = $1")
+        .bind(email)
         .execute(&pool)
         .await
         .ok(); // cascading delete should handle mitra_applications if set up, otherwise separate delete needed
-    sqlx::query!(
+    sqlx::query(
         "DELETE FROM mitra_applications WHERE user_id IN (SELECT id FROM users WHERE email = $1)",
-        email
     )
+    .bind(email)
     .execute(&pool)
     .await
     .ok();
@@ -138,7 +140,8 @@ async fn test_register_mitra_success() {
     assert_eq!(app.status, "pending");
 
     // CLEANUP END
-    sqlx::query!("DELETE FROM users WHERE email = $1", email)
+    sqlx::query("DELETE FROM users WHERE email = $1")
+        .bind(email)
         .execute(&pool)
         .await
         .ok();

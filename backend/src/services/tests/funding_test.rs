@@ -176,20 +176,20 @@ async fn setup_pool(
     invoice_id: Uuid,
 ) -> Uuid {
     // Manually force invoice to 'approved' then 'tokenized' so we can create pool
-    sqlx::query!(
+    sqlx::query(
         "UPDATE invoices SET status = 'tokenized' WHERE id = $1",
-        invoice_id
     )
+    .bind(invoice_id)
     .execute(pool)
     .await
     .expect("Failed to update invoice status");
 
     // Create NFT record stub
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO invoice_nfts (invoice_id, token_id, contract_address, chain_id, owner_address, mint_tx_hash, metadata_uri, minted_at)
-           VALUES ($1, 123, '0xContract', 8453, '0xOwner', '0xTx', 'ipfs://', NOW())"#,
-        invoice_id
+           VALUES ($1, 123, '0xContract', 8453, '0xOwner', '0xTx', 'ipfs://', NOW())"#
     )
+    .bind(invoice_id)
     .execute(pool)
     .await
     .expect("Failed to create NFT record");
@@ -235,11 +235,12 @@ async fn test_invest_limits_success() {
     );
 
     // Cleanup
-    sqlx::query!("DELETE FROM users WHERE email = 'mitra_invest_ok@test.com'")
+    // Cleanup
+    sqlx::query("DELETE FROM users WHERE email = 'mitra_invest_ok@test.com'")
         .execute(&pool)
         .await
         .ok();
-    sqlx::query!("DELETE FROM users WHERE email = 'investor_ok@test.com'")
+    sqlx::query("DELETE FROM users WHERE email = 'investor_ok@test.com'")
         .execute(&pool)
         .await
         .ok();
@@ -276,11 +277,12 @@ async fn test_invest_limits_fail_min() {
     // Parse error checking? For now just ensure failure.
 
     // Cleanup
-    sqlx::query!("DELETE FROM users WHERE email = 'mitra_invest_min@test.com'")
+    // Cleanup
+    sqlx::query("DELETE FROM users WHERE email = 'mitra_invest_min@test.com'")
         .execute(&pool)
         .await
         .ok();
-    sqlx::query!("DELETE FROM users WHERE email = 'investor_min@test.com'")
+    sqlx::query("DELETE FROM users WHERE email = 'investor_min@test.com'")
         .execute(&pool)
         .await
         .ok();
@@ -315,11 +317,12 @@ async fn test_invest_limits_fail_max() {
     assert!(result.is_err(), "Investment 95% should fail");
 
     // Cleanup
-    sqlx::query!("DELETE FROM users WHERE email = 'mitra_invest_max@test.com'")
+    // Cleanup
+    sqlx::query("DELETE FROM users WHERE email = 'mitra_invest_max@test.com'")
         .execute(&pool)
         .await
         .ok();
-    sqlx::query!("DELETE FROM users WHERE email = 'investor_max@test.com'")
+    sqlx::query("DELETE FROM users WHERE email = 'investor_max@test.com'")
         .execute(&pool)
         .await
         .ok();
@@ -354,10 +357,11 @@ async fn test_repay_invoice_success() {
         .expect("Investment failed");
 
     // 2. Set Status to Disbursed (Prereq for repayment)
-    sqlx::query!(
+    // 2. Set Status to Disbursed (Prereq for repayment)
+    sqlx::query(
         "UPDATE funding_pools SET status = 'disbursed' WHERE id = $1",
-        pool_id
     )
+    .bind(pool_id)
     .execute(&pool)
     .await
     .ok();
@@ -395,11 +399,64 @@ async fn test_repay_invoice_success() {
     assert_eq!(inv_status, "repaid");
 
     // Cleanup
-    sqlx::query!("DELETE FROM users WHERE email = 'mitra_repay@test.com'")
+    // Cleanup
+    sqlx::query("DELETE FROM users WHERE email = 'mitra_repay@test.com'")
         .execute(&pool)
         .await
         .ok();
-    sqlx::query!("DELETE FROM users WHERE email = 'investor_repay@test.com'")
+    sqlx::query("DELETE FROM users WHERE email = 'investor_repay@test.com'")
+        .execute(&pool)
+        .await
+        .ok();
+}
+
+#[tokio::test]
+async fn test_duplicate_investment_fails() {
+    let mut config = get_test_config();
+    config.skip_blockchain_verification = true;
+    let pool = PgPool::connect(&config.database_url)
+        .await
+        .expect("Failed to connect");
+
+    let (funding_service, invoice_service, _, pool) = setup_funding_service(pool).await;
+
+    let (_, invoice_id) =
+        create_mitra_and_invoice(&pool, &invoice_service, "mitra_dupe_inv@test.com").await;
+    let pool_id = setup_pool(&pool, &funding_service, invoice_id).await;
+    let investor_id = create_investor(&pool, "investor_dupe@test.com").await;
+
+    // 1st Investment: Success
+    let req1 = InvestRequest {
+        pool_id,
+        amount: 20_000_000.0,
+        tranche: "priority".to_string(),
+        tnc_accepted: true,
+        catalyst_consents: None,
+        tx_hash: "0xTx1".to_string(),
+    };
+    funding_service
+        .invest(investor_id, req1)
+        .await
+        .expect("First investment failed");
+
+    // 2nd Investment: Should Fail
+    let req2 = InvestRequest {
+        pool_id,
+        amount: 30_000_000.0,
+        tranche: "priority".to_string(),
+        tnc_accepted: true,
+        catalyst_consents: None,
+        tx_hash: "0xTx2".to_string(),
+    };
+    let result = funding_service.invest(investor_id, req2).await;
+    assert!(result.is_err(), "Duplicate investment should fail");
+
+    // Cleanup
+    sqlx::query("DELETE FROM users WHERE email = 'mitra_dupe_inv@test.com'")
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM users WHERE email = 'investor_dupe@test.com'")
         .execute(&pool)
         .await
         .ok();

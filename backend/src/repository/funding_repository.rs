@@ -212,6 +212,22 @@ impl FundingRepository {
         Ok(investment)
     }
 
+    pub async fn find_investment_by_pool_and_investor(
+        &self,
+        pool_id: Uuid,
+        investor_id: Uuid,
+    ) -> AppResult<Option<Investment>> {
+        let investment = sqlx::query_as::<_, Investment>(
+            "SELECT * FROM investments WHERE pool_id = $1 AND investor_id = $2",
+        )
+        .bind(pool_id)
+        .bind(investor_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(investment)
+    }
+
     pub async fn find_investment_by_id(&self, id: Uuid) -> AppResult<Option<Investment>> {
         let investment = sqlx::query_as::<_, Investment>("SELECT * FROM investments WHERE id = $1")
             .bind(id)

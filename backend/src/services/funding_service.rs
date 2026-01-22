@@ -177,6 +177,19 @@ impl FundingService {
             return Err(AppError::PoolNotOpen);
         }
 
+        // Check if investor already invested in this pool
+        if self
+            .funding_repo
+            .find_investment_by_pool_and_investor(req.pool_id, investor_id)
+            .await?
+            .is_some()
+        {
+            return Err(AppError::Forbidden(
+                "You have already invested in this pool. Only one investment per pool is allowed."
+                    .to_string(),
+            ));
+        }
+
         // Check tranche
         let is_catalyst = req.tranche == "catalyst";
 

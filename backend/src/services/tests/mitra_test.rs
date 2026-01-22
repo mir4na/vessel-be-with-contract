@@ -34,24 +34,27 @@ pub async fn setup_mitra_service(pool: PgPool) -> (Arc<MitraService>, PgPool) {
 }
 
 async fn create_test_user(pool: &PgPool, email: &str) -> Uuid {
-    sqlx::query!(
+    sqlx::query(
         "DELETE FROM mitra_applications WHERE user_id IN (SELECT id FROM users WHERE email = $1)",
-        email
     )
+    .bind(email)
     .execute(pool)
     .await
     .ok();
-    sqlx::query!("DELETE FROM users WHERE email = $1", email)
+    sqlx::query("DELETE FROM users WHERE email = $1")
+        .bind(email)
         .execute(pool)
         .await
         .ok();
 
     let user_id = Uuid::new_v4();
-    sqlx::query!(
+    sqlx::query(
         r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, cooperative_agreement, email_verified, profile_completed, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'calon_mitra', true, true, true, true, false, 0)"#,
-        user_id, email, &format!("user_{}", user_id.simple())
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'calon_mitra', true, true, true, true, false, 0)"#
     )
+    .bind(user_id)
+    .bind(email)
+    .bind(&format!("user_{}", user_id.simple()))
     .execute(pool)
     .await
     .expect("Failed to create test user");
