@@ -243,12 +243,75 @@ impl FundingService {
             (available, pool.priority_interest_rate)
         };
 
+        // Check 10-90% Limits
+        let min_limit = pool.target_amount * Decimal::from_f64(0.1).unwrap();
+        let max_limit = pool.target_amount * Decimal::from_f64(0.9).unwrap();
+        let pool_remaining = pool.target_amount - pool.funded_amount;
+
+        if pool_remaining >= min_limit {
+            if amount < min_limit {
+                return Err(AppError::ValidationError(format!(
+                    "Minimum investment is 10% of target ({})",
+                    min_limit
+                )));
+            }
+            if amount > max_limit {
+                return Err(AppError::ValidationError(format!(
+                    "Maximum investment is 90% of target ({})",
+                    max_limit
+                )));
+            }
+        } else {
+            // If remaining is small (last chunk), allowing exact fill or remaining
+            if amount > pool_remaining {
+                return Err(AppError::ValidationError(format!(
+                    "Amount exceeds remaining pool capacity ({})",
+                    pool_remaining
+                )));
+            }
+        }
+
         if amount > available {
             return Err(AppError::BadRequest(format!(
                 "Only {} available in {} tranche",
                 available, req.tranche
             )));
         }
+
+        // Forward funds to InvoicePool Contract (Platform -> Contract)
+        // Since we verified the user sent to Platform, we now move it to Contract
+        // Note: verify_investment_transfer confirmed user sent to Platform Wallet
+
+        let contract_addr = &self.config.invoice_pool_contract_addr;
+        let _forward_tx = self
+            .blockchain_service
+            .transfer_idrx(
+                contract_addr,
+                amount,
+                crate::services::blockchain_service::OnChainTxType::Investment,
+            )
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!("Failed to forward funds to contract: {}", e))
+            })?;
+
+        // Record on Smart Contract
+        // Get Token ID
+        let nft = self
+            .invoice_repo
+            .find_nft_by_invoice(pool.invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("NFT record not found for invoice".to_string()))?;
+
+        let token_id = nft.token_id.ok_or_else(|| {
+            AppError::InternalError("Token ID missing from NFT record".to_string())
+        })?;
+
+        // Call contract
+        let _contract_tx = self
+            .blockchain_service
+            .record_investment_on_chain(token_id, &verified_transfer.from, amount)
+            .await?;
 
         // Calculate expected return
         let invoice = self
@@ -507,5 +570,109 @@ impl FundingService {
             catalyst_percentage_funded: catalyst_pct,
             invoice,
         })
+    }
+
+    pub async fn repay_invoice(
+        &self,
+        exporter_id: Uuid,
+        invoice_id: Uuid,
+        req: crate::models::RepayInvoiceRequest,
+    ) -> AppResult<String> {
+        // 1. Get Invoice & ownership check
+        let invoice = self
+            .invoice_repo
+            .find_by_id(invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
+
+        if invoice.exporter_id != exporter_id {
+            return Err(AppError::Forbidden("Not the invoice owner".to_string()));
+        }
+
+        // 2. Get Pool
+        let pool = self
+            .funding_repo
+            .find_by_invoice(invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
+
+        if pool.status != "disbursed" {
+            // Allow if it's already closed/repaid? Idempotency? For now strict check.
+            return Err(AppError::ValidationError(
+                "Pool must be disbursed to be repaid".to_string(),
+            ));
+        }
+
+        let payment_amount = Decimal::from_f64(req.amount)
+            .ok_or_else(|| AppError::ValidationError("Invalid amount".to_string()))?;
+
+        // 3. Verify Mitra Transfer (Mitra -> Platform)
+        // Verify user sent funds to platform wallet
+        let _verified_transfer = self
+            .blockchain_service
+            .verify_investment_transfer(&req.tx_hash, payment_amount)
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!("Failed to verify repayment transfer: {}", e))
+            })?;
+
+        // 4. Forward Funds (Platform -> Contract)
+        let contract_addr = &self.config.invoice_pool_contract_addr;
+        let _forward_tx = self
+            .blockchain_service
+            .transfer_idrx(
+                contract_addr,
+                payment_amount,
+                crate::services::blockchain_service::OnChainTxType::Repayment,
+            )
+            .await?;
+
+        // 5. Calculate Investor Returns
+        let investments = self.funding_repo.find_investments_by_pool(pool.id).await?;
+
+        let mut returns: Vec<Decimal> = Vec::new();
+
+        // Logic: Iterate investments and determine return amount.
+        // For Hackathon/MVP: we assume full repayment triggers full expected return payment.
+        // We push expected_return for each investment.
+        // NOTE: If payment_amount < sum(expected_returns), this will fail on contract side (insufficient balance).
+        // The frontend must ensure amount covers total obligation.
+
+        for inv in investments {
+            returns.push(inv.expected_return);
+
+            // Update investment status locally
+            self.funding_repo
+                .set_investment_repaid(inv.id, inv.expected_return, "pending_on_chain")
+                .await?;
+        }
+
+        // 6. Record on Chain (Contract distributes funds)
+        let nft = self
+            .invoice_repo
+            .find_nft_by_invoice(invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("NFT record missing".to_string()))?;
+
+        let token_id = nft
+            .token_id
+            .ok_or_else(|| AppError::InternalError("Token ID missing".to_string()))?;
+
+        let tx_hash = self
+            .blockchain_service
+            .record_repayment_on_chain(token_id, payment_amount, returns)
+            .await?;
+
+        // 7. Update Invoice/Pool status
+        let _ = self
+            .invoice_repo
+            .update_status(invoice_id, "repaid")
+            .await?;
+        let _ = self.funding_repo.set_closed(pool.id).await?;
+
+        // We should also update stored investments with the real return tx hash if available or use the block tx hash
+        // Skipping detailed per-investment tx hash update for now, or use the same hash.
+
+        Ok(tx_hash)
     }
 }

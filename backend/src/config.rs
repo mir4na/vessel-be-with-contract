@@ -76,6 +76,9 @@ pub struct Config {
 
     // Google OAuth
     pub google_client_id: String,
+
+    // Test Config
+    pub skip_blockchain_verification: bool,
 }
 
 impl Config {
@@ -201,6 +204,14 @@ impl Config {
 
             // Google OAuth
             google_client_id: get_env_or_default("GOOGLE_CLIENT_ID", ""),
+
+            // Test Config (Optional, defaults to false)
+            skip_blockchain_verification: get_env_or_default(
+                "SKIP_BLOCKCHAIN_VERIFICATION",
+                "false",
+            )
+            .parse()
+            .unwrap_or(false),
         })
     }
 }

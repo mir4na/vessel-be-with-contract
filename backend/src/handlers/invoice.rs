@@ -331,7 +331,53 @@ pub async fn approve(
             data.catalyst_interest_rate,
         )
         .await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::success(invoice, "Invoice approved")))
+
+    // 2. Mint NFT
+    // Generate metadata URI
+    let metadata_uri = state
+        .blockchain_service
+        .create_nft_metadata(invoice.id)
+        .await?;
+
+    // Mint on chain
+    let (token_id, tx_hash, contract_addr) = state
+        .blockchain_service
+        .mint_invoice_nft(&invoice, &metadata_uri)
+        .await?;
+
+    // Create NFT record in DB
+    state
+        .invoice_repo
+        .create_nft(
+            invoice.id,
+            token_id,
+            &contract_addr,
+            state.config.chain_id as i32,
+            invoice.exporter_wallet_address.as_deref().unwrap_or(""), // Should valid if mint succeeded
+            &tx_hash,
+            &metadata_uri,
+        )
+        .await?;
+
+    // Update status to tokenized
+    let invoice = state
+        .invoice_repo
+        .update_status(invoice.id, "tokenized")
+        .await?;
+
+    // 3. Create Funding Pool
+    let _pool = state.funding_service.create_pool(invoice.id).await?;
+
+    // Update status to Funding (since pool is open)
+    let invoice = state
+        .invoice_repo
+        .update_status(invoice.id, "funding")
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        invoice,
+        "Invoice approved, tokenized, and pool created",
+    )))
 }
 
 /// POST /api/v1/admin/invoices/{id}/reject

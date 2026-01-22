@@ -366,6 +366,10 @@ async fn main() -> std::io::Result<()> {
                                     .route(
                                         "/{id}/pool",
                                         web::post().to(handlers::funding::create_pool),
+                                    )
+                                    .route(
+                                        "/{id}/repay",
+                                        web::post().to(handlers::funding::process_repayment),
                                     ),
                             )
                             // Pool routes

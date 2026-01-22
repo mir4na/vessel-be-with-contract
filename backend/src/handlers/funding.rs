@@ -226,14 +226,27 @@ pub async fn close_pool_and_notify(
     )))
 }
 
-/// POST /api/v1/admin/invoices/{id}/repay
+/// POST /api/v1/admin/invoices/{id}/repay (Used by Mitra/Admin)
 pub async fn process_repayment(
-    _state: web::Data<AppState>,
-    _req: HttpRequest,
-    _path: web::Path<Uuid>,
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    body: web::Json<crate::models::RepayInvoiceRequest>,
 ) -> AppResult<HttpResponse> {
-    // Stub
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("Repayment processed")))
+    let invoice_id = path.into_inner();
+    let user_id = get_user_id(&req)?;
+
+    // We allow Mitra (exporter) to initiate repayment
+    // Logic inside service should verify ownership
+    let result = state
+        .funding_service
+        .repay_invoice(user_id, invoice_id, body.into_inner())
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        result,
+        "Repayment processed successfully",
+    )))
 }
 
 #[derive(serde::Deserialize)]

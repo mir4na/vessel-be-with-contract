@@ -88,6 +88,7 @@ impl InvoiceService {
                 chrono::Utc::now().date_naive(),
                 due_date,
                 req.description.as_deref(),
+                &req.wallet_address,
             )
             .await?;
 

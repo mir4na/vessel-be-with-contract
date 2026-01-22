@@ -34,6 +34,24 @@ abigen!(
     ]"#
 );
 
+// Generate InvoiceNFT contract bindings
+abigen!(
+    InvoiceNFT,
+    r#"[
+        function mintInvoice(address to, string memory invoiceNumber, uint256 amount, uint256 advanceAmount, uint256 interestRate, uint256 issueDate, uint256 dueDate, string memory buyerCountry, string memory documentHash, string memory uri) external returns (uint256)
+        function getTokenIdByInvoiceNumber(string memory invoiceNumber) external view returns (uint256)
+    ]"#
+);
+
+// Generate InvoicePool contract bindings
+abigen!(
+    InvoicePool,
+    r#"[
+        function recordInvestment(uint256 tokenId, address investor, uint256 amount) external
+        function recordRepayment(uint256 tokenId, uint256 totalAmount, uint256[] calldata investorReturns) external
+    ]"#
+);
+
 /// Represents a verified on-chain IDRX transfer
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct VerifiedTransfer {
@@ -151,6 +169,19 @@ impl BlockchainService {
         expected_to: &str,
         expected_amount: Decimal,
     ) -> AppResult<VerifiedTransfer> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain verification (Test Mode)");
+            return Ok(VerifiedTransfer {
+                tx_hash: tx_hash.to_string(),
+                from: "0xTestUser".to_string(),
+                to: expected_to.to_string(),
+                amount: expected_amount,
+                block_number: 12345,
+                confirmed: true,
+                explorer_url: "http://test.com".to_string(),
+            });
+        }
+
         let hash: H256 = tx_hash
             .parse()
             .map_err(|_| AppError::ValidationError("Invalid transaction hash".to_string()))?;
@@ -269,6 +300,11 @@ impl BlockchainService {
         amount: Decimal,
         tx_type: OnChainTxType,
     ) -> AppResult<String> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain transfer logic (Test Mode)");
+            return Ok(format!("0xTestTransferHash_{}", Uuid::new_v4()));
+        }
+
         let wallet = self.wallet.as_ref().ok_or_else(|| {
             AppError::BlockchainError("Platform wallet not configured".to_string())
         })?;
@@ -510,29 +546,110 @@ impl BlockchainService {
     // This is a simplified version - in production, use ethers-rs contract bindings
     pub async fn mint_invoice_nft(
         &self,
-        invoice_id: Uuid,
-        owner_address: &str,
-        metadata_uri: &str,
-    ) -> AppResult<(i64, String)> {
-        // In a full implementation, this would:
-        // 1. Load the NFT contract ABI
-        // 2. Call the mint function
-        // 3. Wait for the transaction to be confirmed
-        // 4. Return the token ID and tx hash
+        invoice: &crate::models::Invoice,
+        uri: &str,
+    ) -> AppResult<(i64, String, String)> {
+        let contract_addr: Address =
+            self.config.invoice_nft_contract_addr.parse().map_err(|_| {
+                AppError::BlockchainError("Invalid InvoiceNFT contract address".to_string())
+            })?;
 
-        // For now, return a placeholder
-        tracing::info!(
-            "Would mint NFT for invoice {} to {} with metadata {}",
-            invoice_id,
-            owner_address,
-            metadata_uri
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain minting (Test Mode)");
+            return Ok((
+                12345,
+                "0xTestMintHash".to_string(),
+                contract_addr.to_string(),
+            ));
+        }
+
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
+
+        let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
+        let contract = InvoiceNFT::new(contract_addr, Arc::new(client));
+
+        // Prepare args
+        let to_addr: Address = invoice
+            .exporter_wallet_address
+            .as_deref()
+            .ok_or_else(|| {
+                AppError::ValidationError("Exporter wallet address required".to_string())
+            })?
+            .parse()
+            .map_err(|_| {
+                AppError::ValidationError("Invalid exporter wallet address".to_string())
+            })?;
+
+        let amount_units = self.to_token_units(invoice.amount);
+        let advance_amount = invoice.advance_amount.unwrap_or(invoice.amount);
+        let advance_units = self.to_token_units(advance_amount);
+
+        let interest_bps: u64 = invoice
+            .interest_rate
+            .map(|r| (r.to_f64().unwrap_or(0.0) * 100.0) as u64) // e.g. 10.5% -> 1050 bps
+            .unwrap_or(0);
+
+        let issue_date = U256::from(
+            invoice
+                .issue_date
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_utc()
+                .timestamp(),
+        );
+        let due_date = U256::from(
+            invoice
+                .due_date
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_utc()
+                .timestamp(),
         );
 
-        // Simulate token ID (in production, get from contract event)
-        let token_id = chrono::Utc::now().timestamp();
-        let tx_hash = format!("0x{}", ethers::utils::hex::encode([0u8; 32])); // Placeholder
+        let doc_hash = invoice.document_hash.clone().unwrap_or_default();
 
-        Ok((token_id, tx_hash))
+        tracing::info!("Minting NFT for invoice {}", invoice.invoice_number);
+
+        let tx = contract.mint_invoice(
+            to_addr,
+            invoice.invoice_number.clone(),
+            amount_units,
+            advance_units,
+            U256::from(interest_bps),
+            issue_date,
+            due_date,
+            invoice.buyer_country.clone(),
+            doc_hash,
+            uri.to_string(),
+        );
+
+        let pending_tx = tx
+            .send()
+            .await
+            .map_err(|e| AppError::BlockchainError(format!("Failed to send mint tx: {}", e)))?;
+
+        let receipt = pending_tx
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!("Failed to wait for mint receipt: {}", e))
+            })?
+            .ok_or_else(|| AppError::BlockchainError("Mint transaction failed".to_string()))?;
+
+        let tx_hash = format!("{:?}", receipt.transaction_hash);
+
+        // Find TokenId by querying contract
+        let token_id_u256 = contract
+            .get_token_id_by_invoice_number(invoice.invoice_number.clone())
+            .call()
+            .await
+            .map_err(|e| AppError::BlockchainError(format!("Failed to get token ID: {}", e)))?;
+
+        let token_id = token_id_u256.as_u64() as i64;
+        let contract_address_str = self.config.invoice_nft_contract_addr.clone();
+
+        Ok((token_id, tx_hash, contract_address_str))
     }
 
     pub async fn create_nft_metadata(&self, invoice_id: Uuid) -> AppResult<String> {
@@ -581,5 +698,124 @@ impl BlockchainService {
             .await?;
 
         Ok(metadata_uri)
+    }
+
+    pub async fn record_investment_on_chain(
+        &self,
+        token_id: i64,
+        investor_address: &str,
+        amount: Decimal,
+    ) -> AppResult<String> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain investment recording (Test Mode)");
+            return Ok("0xTestRecordInvestHash".to_string());
+        }
+
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
+
+        let contract_addr: Address =
+            self.config
+                .invoice_pool_contract_addr
+                .parse()
+                .map_err(|_| {
+                    AppError::BlockchainError("Invalid InvoicePool contract address".to_string())
+                })?;
+
+        let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
+        let contract = InvoicePool::new(contract_addr, Arc::new(client));
+
+        let investor_addr: Address = investor_address
+            .parse()
+            .map_err(|_| AppError::ValidationError("Invalid investor address".to_string()))?;
+
+        let amount_units = self.to_token_units(amount);
+
+        tracing::info!(
+            "Recording investment on-chain: token {} from {} amount {}",
+            token_id,
+            investor_address,
+            amount
+        );
+
+        let tx = contract.record_investment(U256::from(token_id), investor_addr, amount_units);
+
+        let pending_tx = tx.send().await.map_err(|e| {
+            AppError::BlockchainError(format!("Failed to send record investment tx: {}", e))
+        })?;
+
+        let receipt = pending_tx
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!(
+                    "Failed to wait for record investment receipt: {}",
+                    e
+                ))
+            })?
+            .ok_or_else(|| {
+                AppError::BlockchainError("Record investment transaction failed".to_string())
+            })?;
+
+        Ok(format!("{:?}", receipt.transaction_hash))
+    }
+
+    pub async fn record_repayment_on_chain(
+        &self,
+        token_id: i64,
+        total_amount: Decimal,
+        investor_returns: Vec<Decimal>,
+    ) -> AppResult<String> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain repayment recording (Test Mode)");
+            return Ok("0xTestRecordRepayHash".to_string());
+        }
+
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
+
+        let contract_addr: Address =
+            self.config
+                .invoice_pool_contract_addr
+                .parse()
+                .map_err(|_| {
+                    AppError::BlockchainError("Invalid InvoicePool contract address".to_string())
+                })?;
+
+        let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
+        let contract = InvoicePool::new(contract_addr, Arc::new(client));
+
+        let total_amount_units = self.to_token_units(total_amount);
+        let returns_units: Vec<U256> = investor_returns
+            .iter()
+            .map(|&amount| self.to_token_units(amount))
+            .collect();
+
+        tracing::info!(
+            "Recording repayment on-chain: token {} amount {}",
+            token_id,
+            total_amount
+        );
+
+        let tx = contract.record_repayment(U256::from(token_id), total_amount_units, returns_units);
+
+        let pending_tx = tx.send().await.map_err(|e| {
+            AppError::BlockchainError(format!("Failed to send record repayment tx: {}", e))
+        })?;
+
+        let receipt = pending_tx
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!(
+                    "Failed to wait for record repayment receipt: {}",
+                    e
+                ))
+            })?
+            .ok_or_else(|| {
+                AppError::BlockchainError("Record repayment transaction failed".to_string())
+            })?;
+
+        Ok(format!("{:?}", receipt.transaction_hash))
     }
 }

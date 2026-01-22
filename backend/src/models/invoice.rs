@@ -33,8 +33,6 @@ pub enum InvoiceStatus {
     Defaulted,
 }
 
-
-
 impl std::fmt::Display for InvoiceStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -135,6 +133,8 @@ pub struct Invoice {
     pub funding_duration_days: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payment_link: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exporter_wallet_address: Option<String>,
 
     // Relations (not from DB, populated separately)
     #[sqlx(skip)]
@@ -232,6 +232,7 @@ pub struct CreateInvoiceFundingRequest {
     pub data_confirmation: bool,
 
     pub description: Option<String>,
+    pub wallet_address: String,
 }
 
 #[derive(Debug, Deserialize)]

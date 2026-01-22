@@ -400,6 +400,8 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
                 ALTER TABLE users RENAME COLUMN balance_idr TO balance_idrx;
             END IF;
         END $$;"#,
+        // Add exporter_wallet_address to invoices
+        r#"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS exporter_wallet_address VARCHAR(42);"#,
     ];
 
     for (i, migration) in migrations.iter().enumerate() {
