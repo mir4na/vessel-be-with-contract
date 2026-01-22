@@ -1,4 +1,5 @@
 #![allow(dead_code)] // Many structs/methods are scaffolded for future features
+#![allow(clippy::too_many_arguments)] // Suppress too many arguments lint globally
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};

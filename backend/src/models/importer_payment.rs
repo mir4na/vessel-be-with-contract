@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum PaymentStatus {
     #[serde(rename = "pending")]
+    #[default]
     Pending,
     #[serde(rename = "paid")]
     Paid,
@@ -14,12 +15,6 @@ pub enum PaymentStatus {
     Overdue,
     #[serde(rename = "canceled")]
     Canceled,
-}
-
-impl Default for PaymentStatus {
-    fn default() -> Self {
-        PaymentStatus::Pending
-    }
 }
 
 impl std::fmt::Display for PaymentStatus {

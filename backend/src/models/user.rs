@@ -4,10 +4,11 @@ use sqlx::FromRow;
 use uuid::Uuid;
 use validator::Validate;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, Default)]
 #[sqlx(type_name = "varchar", rename_all = "lowercase")]
 pub enum UserRole {
     #[serde(rename = "investor")]
+    #[default]
     Investor,
     #[serde(rename = "admin")]
     Admin,
@@ -15,12 +16,6 @@ pub enum UserRole {
     Mitra,
     #[serde(rename = "exporter")]
     Exporter,
-}
-
-impl Default for UserRole {
-    fn default() -> Self {
-        UserRole::Investor
-    }
 }
 
 impl std::fmt::Display for UserRole {
@@ -34,10 +29,11 @@ impl std::fmt::Display for UserRole {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, Default)]
 #[sqlx(type_name = "varchar", rename_all = "snake_case")]
 pub enum MemberStatus {
     #[serde(rename = "calon_anggota_pendana")]
+    #[default]
     CalonAnggotaPendana,
     #[serde(rename = "calon_anggota_mitra")]
     CalonAnggotaMitra,
@@ -45,12 +41,6 @@ pub enum MemberStatus {
     MemberMitra,
     #[serde(rename = "admin")]
     Admin,
-}
-
-impl Default for MemberStatus {
-    fn default() -> Self {
-        MemberStatus::CalonAnggotaPendana
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

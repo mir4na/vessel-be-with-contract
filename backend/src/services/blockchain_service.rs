@@ -530,7 +530,7 @@ impl BlockchainService {
 
         // Simulate token ID (in production, get from contract event)
         let token_id = chrono::Utc::now().timestamp();
-        let tx_hash = format!("0x{}", ethers::utils::hex::encode(&[0u8; 32])); // Placeholder
+        let tx_hash = format!("0x{}", ethers::utils::hex::encode([0u8; 32])); // Placeholder
 
         Ok((token_id, tx_hash))
     }

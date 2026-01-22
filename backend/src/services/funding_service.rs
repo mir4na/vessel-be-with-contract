@@ -148,7 +148,7 @@ impl FundingService {
     /// 2. This endpoint verifies the on-chain transaction
     /// 3. Records the investment with verified tx_hash
     /// 4. Updates pool funded amounts
-    /// All transactions are transparent and verifiable on Base mainnet
+    ///    All transactions are transparent and verifiable on Base mainnet
     pub async fn invest(&self, investor_id: Uuid, req: InvestRequest) -> AppResult<Investment> {
         // Validate TnC acceptance
         if !req.tnc_accepted {

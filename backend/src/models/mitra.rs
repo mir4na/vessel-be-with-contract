@@ -4,20 +4,15 @@ use sqlx::FromRow;
 use uuid::Uuid;
 use validator::Validate;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum MitraApplicationStatus {
     #[serde(rename = "pending")]
+    #[default]
     Pending,
     #[serde(rename = "approved")]
     Approved,
     #[serde(rename = "rejected")]
     Rejected,
-}
-
-impl Default for MitraApplicationStatus {
-    fn default() -> Self {
-        MitraApplicationStatus::Pending
-    }
 }
 
 impl std::fmt::Display for MitraApplicationStatus {

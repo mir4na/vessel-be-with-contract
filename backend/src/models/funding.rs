@@ -7,10 +7,11 @@ use validator::Validate;
 
 use super::{Invoice, User};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, Default)]
 #[sqlx(type_name = "varchar", rename_all = "snake_case")]
 pub enum PoolStatus {
     #[serde(rename = "open")]
+    #[default]
     Open,
     #[serde(rename = "filled")]
     Filled,
@@ -20,11 +21,7 @@ pub enum PoolStatus {
     Closed,
 }
 
-impl Default for PoolStatus {
-    fn default() -> Self {
-        PoolStatus::Open
-    }
-}
+
 
 impl std::fmt::Display for PoolStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -37,19 +34,16 @@ impl std::fmt::Display for PoolStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum TrancheType {
     #[serde(rename = "priority")]
+    #[default]
     Priority,
     #[serde(rename = "catalyst")]
     Catalyst,
 }
 
-impl Default for TrancheType {
-    fn default() -> Self {
-        TrancheType::Priority
-    }
-}
+
 
 impl std::fmt::Display for TrancheType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -101,10 +95,11 @@ pub struct FundingPool {
     pub investments: Option<Vec<Investment>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, Default)]
 #[sqlx(type_name = "varchar", rename_all = "snake_case")]
 pub enum InvestmentStatus {
     #[serde(rename = "active")]
+    #[default]
     Active,
     #[serde(rename = "repaid")]
     Repaid,
@@ -112,11 +107,7 @@ pub enum InvestmentStatus {
     Defaulted,
 }
 
-impl Default for InvestmentStatus {
-    fn default() -> Self {
-        InvestmentStatus::Active
-    }
-}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Investment {

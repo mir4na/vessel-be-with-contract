@@ -33,20 +33,15 @@ impl std::fmt::Display for TransactionType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum TransactionStatus {
     #[serde(rename = "pending")]
+    #[default]
     Pending,
     #[serde(rename = "confirmed")]
     Confirmed,
     #[serde(rename = "failed")]
     Failed,
-}
-
-impl Default for TransactionStatus {
-    fn default() -> Self {
-        TransactionStatus::Pending
-    }
 }
 
 impl std::fmt::Display for TransactionStatus {

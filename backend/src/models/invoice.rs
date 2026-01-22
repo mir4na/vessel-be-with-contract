@@ -7,10 +7,11 @@ use validator::Validate;
 
 use super::{User, UserProfile};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, Default)]
 #[sqlx(type_name = "varchar", rename_all = "snake_case")]
 pub enum InvoiceStatus {
     #[serde(rename = "draft")]
+    #[default]
     Draft,
     #[serde(rename = "pending_review")]
     PendingReview,
@@ -32,11 +33,7 @@ pub enum InvoiceStatus {
     Defaulted,
 }
 
-impl Default for InvoiceStatus {
-    fn default() -> Self {
-        InvoiceStatus::Draft
-    }
-}
+
 
 impl std::fmt::Display for InvoiceStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
