@@ -8,6 +8,7 @@ describe("InvoicePool", function () {
   let exporter;
   let investor1;
   let investor2;
+  let mockIDRX;
 
   // Using simple amounts (no decimals needed for abstracted payments)
   const sampleInvoice = {
@@ -30,17 +31,26 @@ describe("InvoicePool", function () {
     invoiceNFT = await InvoiceNFT.deploy();
     await invoiceNFT.waitForDeployment();
 
-    // Deploy InvoicePool (no stablecoin needed - abstracted payments)
+    // Deploy MockIDRX
+    const MockIDRX = await ethers.getContractFactory("MockIDRX");
+    mockIDRX = await MockIDRX.deploy();
+    await mockIDRX.waitForDeployment();
+
+    // Deploy InvoicePool
     const InvoicePool = await ethers.getContractFactory("InvoicePool");
     invoicePool = await InvoicePool.deploy(
       await invoiceNFT.getAddress(),
-      owner.address // platform wallet
+      owner.address, // platform wallet
+      await mockIDRX.getAddress()
     );
     await invoicePool.waitForDeployment();
 
     // Grant roles
     const MINTER_ROLE = await invoiceNFT.MINTER_ROLE();
     await invoiceNFT.grantRole(MINTER_ROLE, await invoicePool.getAddress());
+
+    // Mint IDRX to InvoicePool to simulate liquidity (since it checks balanceOf(address(this)))
+    await mockIDRX.mint(await invoicePool.getAddress(), ethers.parseEther("1000000"));
   });
 
   async function mintAndVerifyInvoice() {
@@ -180,6 +190,7 @@ describe("InvoicePool", function () {
       );
       await invoiceNFT.verifyShipment(2);
       await invoicePool.createPool(2);
+
       await invoicePool.recordInvestment(2, investor1.address, ethers.parseEther("1000"));
 
       await expect(invoicePool.recordDisbursement(2)).to.be.revertedWith("Pool not filled");

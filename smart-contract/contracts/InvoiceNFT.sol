@@ -214,7 +214,8 @@ contract InvoiceNFT is
     function isFundable(uint256 tokenId) external view returns (bool) {
         if (!_exists(tokenId)) return false;
         Invoice memory invoice = invoices[tokenId];
-        return invoice.status == InvoiceStatus.Active;
+        return
+            invoice.status == InvoiceStatus.Active && invoice.shipmentVerified;
     }
 
     /**
