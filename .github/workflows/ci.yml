@@ -13,29 +13,29 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: vessel
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: vessel_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # services:
+    #   postgres:
+    #     image: postgres:15
+    #     env:
+    #       POSTGRES_USER: vessel
+    #       POSTGRES_PASSWORD: password
+    #       POSTGRES_DB: vessel_db
+    #     ports:
+    #       - 5432:5432
+    #     options: >-
+    #       --health-cmd pg_isready
+    #       --health-interval 10s
+    #       --health-timeout 5s
+    #       --health-retries 5
+    #   redis:
+    #     image: redis
+    #     ports:
+    #       - 6379:6379
+    #     options: >-
+    #       --health-cmd "redis-cli ping"
+    #       --health-interval 10s
+    #       --health-timeout 5s
+    #       --health-retries 5
 
     steps:
     - uses: actions/checkout@v3
@@ -73,8 +73,8 @@ jobs:
     - name: Run Tests
       working-directory: ./backend
       env:
-        DATABASE_URL: postgres://vessel:password@localhost:5432/vessel_db
-        REDIS_URL: redis://localhost:6379
-        JWT_SECRET: test_secret_key_vessel_backend_2025
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # REDIS_URL: redis://localhost:6379
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
         RUST_LOG: info
       run: cargo test
