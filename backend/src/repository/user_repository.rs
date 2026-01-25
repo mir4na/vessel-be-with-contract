@@ -20,12 +20,10 @@ impl UserRepository {
             return Ok(Vec::new());
         }
 
-        let users = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = ANY($1)",
-        )
-        .bind(ids)
-        .fetch_all(&self.pool)
-        .await?;
+        let users = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ANY($1)")
+            .bind(ids)
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(users)
     }

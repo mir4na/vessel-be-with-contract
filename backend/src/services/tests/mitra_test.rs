@@ -3,7 +3,6 @@ use sqlx::Row;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::config::Config;
 use crate::models::MitraApplyRequest;
 use crate::repository::{MitraRepository, UserRepository};
 use crate::services::email_service::EmailService;
@@ -54,7 +53,7 @@ async fn create_test_user(pool: &PgPool, email: &str) -> Uuid {
     )
     .bind(user_id)
     .bind(email)
-    .bind(&format!("user_{}", user_id.simple()))
+    .bind(format!("user_{}", user_id.simple()))
     .execute(pool)
     .await
     .expect("Failed to create test user");

@@ -98,7 +98,7 @@ impl InvoiceRepository {
         };
 
         let total: (i64,) = if let Some(ref s) = status {
-             sqlx::query_as("SELECT COUNT(*) FROM invoices WHERE exporter_id = $1 AND status = $2")
+            sqlx::query_as("SELECT COUNT(*) FROM invoices WHERE exporter_id = $1 AND status = $2")
                 .bind(exporter_id)
                 .bind(s)
                 .fetch_one(&self.pool)

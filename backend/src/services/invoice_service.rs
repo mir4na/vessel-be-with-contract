@@ -136,12 +136,12 @@ impl InvoiceService {
         let doc_score = self.calculate_document_score(&documents);
         // Scale to percentage: 3 required docs = 30 points max from required (out of 35 cap)
         let score_percentage = ((doc_score as f64 / 35.0) * 100.0).round() as i32;
-        self.invoice_repo.update_document_score(id, score_percentage).await?;
+        self.invoice_repo
+            .update_document_score(id, score_percentage)
+            .await?;
 
         // Update status to pending_review
-        self.invoice_repo
-            .update_status(id, "pending_review")
-            .await
+        self.invoice_repo.update_status(id, "pending_review").await
     }
 
     pub async fn get_invoice(&self, id: Uuid) -> AppResult<Invoice> {
@@ -187,7 +187,7 @@ impl InvoiceService {
             .invoice_repo
             .find_by_status("approved", page, per_page)
             .await?;
-            
+
         // Populate exporter details
         self.populate_exporters(&mut invoices).await?;
 
@@ -203,10 +203,8 @@ impl InvoiceService {
         unique_ids.dedup();
 
         let users = self.user_repo.find_by_ids(&unique_ids).await?;
-        let user_map: std::collections::HashMap<Uuid, crate::models::User> = users
-            .into_iter()
-            .map(|u| (u.id, u))
-            .collect();
+        let user_map: std::collections::HashMap<Uuid, crate::models::User> =
+            users.into_iter().map(|u| (u.id, u)).collect();
 
         for invoice in invoices {
             if let Some(user) = user_map.get(&invoice.exporter_id) {

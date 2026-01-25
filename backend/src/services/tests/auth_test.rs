@@ -1,7 +1,5 @@
-use chrono::Utc;
 use sqlx::PgPool;
 use std::sync::Arc;
-use uuid::Uuid;
 
 use crate::config::Config;
 use crate::models::{MitraApplication, RegisterRequest};

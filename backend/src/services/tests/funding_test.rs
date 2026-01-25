@@ -1,13 +1,9 @@
-use chrono::{Duration, Utc};
-use rust_decimal::prelude::FromPrimitive;
-use rust_decimal::Decimal;
 use sqlx::PgPool;
 use sqlx::Row;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::config::Config;
-use crate::models::{CreateInvoiceRequest, InvestRequest, RepayInvoiceRequest};
+use crate::models::{InvestRequest, RepayInvoiceRequest};
 use crate::repository::{
     FundingRepository, InvoiceRepository, MitraRepository, RiskQuestionnaireRepository,
     TransactionRepository, UserRepository,
@@ -109,7 +105,7 @@ async fn create_investor(pool: &PgPool, base_email: &str) -> Uuid {
 
 async fn create_mitra_and_invoice(
     pool: &PgPool,
-    invoice_service: &Arc<InvoiceService>,
+    _invoice_service: &Arc<InvoiceService>,
     base_email: &str,
 ) -> (Uuid, Uuid) {
     // 1. Create Mitra
@@ -176,13 +172,11 @@ async fn setup_pool(
     invoice_id: Uuid,
 ) -> Uuid {
     // Manually force invoice to 'approved' then 'tokenized' so we can create pool
-    sqlx::query(
-        "UPDATE invoices SET status = 'tokenized' WHERE id = $1",
-    )
-    .bind(invoice_id)
-    .execute(pool)
-    .await
-    .expect("Failed to update invoice status");
+    sqlx::query("UPDATE invoices SET status = 'tokenized' WHERE id = $1")
+        .bind(invoice_id)
+        .execute(pool)
+        .await
+        .expect("Failed to update invoice status");
 
     // Create NFT record stub
     sqlx::query(
@@ -358,13 +352,11 @@ async fn test_repay_invoice_success() {
 
     // 2. Set Status to Disbursed (Prereq for repayment)
     // 2. Set Status to Disbursed (Prereq for repayment)
-    sqlx::query(
-        "UPDATE funding_pools SET status = 'disbursed' WHERE id = $1",
-    )
-    .bind(pool_id)
-    .execute(&pool)
-    .await
-    .ok();
+    sqlx::query("UPDATE funding_pools SET status = 'disbursed' WHERE id = $1")
+        .bind(pool_id)
+        .execute(&pool)
+        .await
+        .ok();
 
     // 3. Repay 21M (Principal + Interest approx)
     let repay_req = RepayInvoiceRequest {
@@ -483,13 +475,20 @@ async fn test_get_mitra_pools_success() {
 
     // Test get_mitra_pools
     let result = funding_service.get_mitra_pools(mitra_id, 1, 10).await;
-    assert!(result.is_ok(), "get_mitra_pools should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "get_mitra_pools should succeed: {:?}",
+        result.err()
+    );
 
     let (pools, total) = result.unwrap();
     assert_eq!(total, 1, "Should have 1 pool");
     assert_eq!(pools.len(), 1, "Should return 1 pool");
     assert_eq!(pools[0].pool.id, pool_id, "Pool ID should match");
-    assert_eq!(pools[0].pool.invoice_id, invoice_id, "Invoice ID should match");
+    assert_eq!(
+        pools[0].pool.invoice_id, invoice_id,
+        "Invoice ID should match"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM funding_pools WHERE id = $1")
@@ -544,7 +543,10 @@ async fn test_get_mitra_pools_empty() {
 
     // Test get_mitra_pools for mitra with no pools
     let result = funding_service.get_mitra_pools(user_id, 1, 10).await;
-    assert!(result.is_ok(), "get_mitra_pools should succeed even with no pools");
+    assert!(
+        result.is_ok(),
+        "get_mitra_pools should succeed even with no pools"
+    );
 
     let (pools, total) = result.unwrap();
     assert_eq!(total, 0, "Should have 0 pools");
@@ -643,7 +645,11 @@ async fn test_get_mitra_pools_multiple() {
 
     // Test get_mitra_pools
     let result = funding_service.get_mitra_pools(mitra_id, 1, 10).await;
-    assert!(result.is_ok(), "get_mitra_pools should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "get_mitra_pools should succeed: {:?}",
+        result.err()
+    );
 
     let (pools, total) = result.unwrap();
     assert_eq!(total, 3, "Should have 3 pools");
@@ -654,7 +660,11 @@ async fn test_get_mitra_pools_multiple() {
     assert!(result.is_ok());
     let (pools, total) = result.unwrap();
     assert_eq!(total, 3, "Total should still be 3");
-    assert_eq!(pools.len(), 2, "Should return only 2 pools due to pagination");
+    assert_eq!(
+        pools.len(),
+        2,
+        "Should return only 2 pools due to pagination"
+    );
 
     // Test pagination - page 2, per_page 2
     let result = funding_service.get_mitra_pools(mitra_id, 2, 2).await;
@@ -786,14 +796,30 @@ async fn test_get_pool_by_invoice_success() {
     let pool_id = setup_pool(&pool, &funding_service, invoice_id).await;
 
     // Test get_pool_by_invoice
-    let result = funding_service.get_pool_by_invoice(mitra_id, invoice_id).await;
-    assert!(result.is_ok(), "get_pool_by_invoice should succeed: {:?}", result.err());
+    let result = funding_service
+        .get_pool_by_invoice(mitra_id, invoice_id)
+        .await;
+    assert!(
+        result.is_ok(),
+        "get_pool_by_invoice should succeed: {:?}",
+        result.err()
+    );
 
     let pool_response = result.unwrap();
     assert_eq!(pool_response.pool.id, pool_id, "Pool ID should match");
-    assert_eq!(pool_response.pool.invoice_id, invoice_id, "Invoice ID should match");
-    assert!(pool_response.invoice.is_some(), "Invoice should be included");
-    assert_eq!(pool_response.invoice.as_ref().unwrap().id, invoice_id, "Invoice should match");
+    assert_eq!(
+        pool_response.pool.invoice_id, invoice_id,
+        "Invoice ID should match"
+    );
+    assert!(
+        pool_response.invoice.is_some(),
+        "Invoice should be included"
+    );
+    assert_eq!(
+        pool_response.invoice.as_ref().unwrap().id,
+        invoice_id,
+        "Invoice should match"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM funding_pools WHERE id = $1")
@@ -848,7 +874,9 @@ async fn test_get_pool_by_invoice_not_found() {
 
     // Test get_pool_by_invoice with non-existent invoice
     let fake_invoice_id = Uuid::new_v4();
-    let result = funding_service.get_pool_by_invoice(mitra_id, fake_invoice_id).await;
+    let result = funding_service
+        .get_pool_by_invoice(mitra_id, fake_invoice_id)
+        .await;
     assert!(result.is_err(), "Should fail for non-existent invoice");
 
     let error = result.unwrap_err();
@@ -900,8 +928,13 @@ async fn test_get_pool_by_invoice_forbidden_wrong_owner() {
     .expect("Failed to create mitra2");
 
     // Test mitra2 trying to access mitra1's invoice pool
-    let result = funding_service.get_pool_by_invoice(mitra2_id, invoice_id).await;
-    assert!(result.is_err(), "Should fail when accessing another user's invoice");
+    let result = funding_service
+        .get_pool_by_invoice(mitra2_id, invoice_id)
+        .await;
+    assert!(
+        result.is_err(),
+        "Should fail when accessing another user's invoice"
+    );
 
     let error = result.unwrap_err();
     assert!(
@@ -997,8 +1030,13 @@ async fn test_get_pool_by_invoice_no_pool_exists() {
     .expect("Create invoice failed");
 
     // Test get_pool_by_invoice when no pool exists for invoice
-    let result = funding_service.get_pool_by_invoice(mitra_id, invoice.id).await;
-    assert!(result.is_err(), "Should fail when no pool exists for invoice");
+    let result = funding_service
+        .get_pool_by_invoice(mitra_id, invoice.id)
+        .await;
+    assert!(
+        result.is_err(),
+        "Should fail when no pool exists for invoice"
+    );
 
     let error = result.unwrap_err();
     assert!(
@@ -1041,11 +1079,18 @@ async fn test_get_mitra_dashboard_success() {
 
     // Test get_mitra_dashboard
     let result = funding_service.get_mitra_dashboard(mitra_id).await;
-    assert!(result.is_ok(), "get_mitra_dashboard should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "get_mitra_dashboard should succeed: {:?}",
+        result.err()
+    );
 
     let dashboard = result.unwrap();
     // Invoice is in 'funding' status after pool creation
-    assert!(dashboard.total_active_financing >= 0.0, "Should have financing info");
+    assert!(
+        dashboard.total_active_financing >= 0.0,
+        "Should have financing info"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM funding_pools WHERE id = $1")
@@ -1100,12 +1145,21 @@ async fn test_get_mitra_dashboard_empty() {
 
     // Test get_mitra_dashboard for mitra with no invoices
     let result = funding_service.get_mitra_dashboard(mitra_id).await;
-    assert!(result.is_ok(), "get_mitra_dashboard should succeed even with no data");
+    assert!(
+        result.is_ok(),
+        "get_mitra_dashboard should succeed even with no data"
+    );
 
     let dashboard = result.unwrap();
-    assert_eq!(dashboard.total_active_financing, 0.0, "Should have 0 financing");
+    assert_eq!(
+        dashboard.total_active_financing, 0.0,
+        "Should have 0 financing"
+    );
     assert_eq!(dashboard.total_owed_to_investors, 0.0, "Should have 0 owed");
-    assert!(dashboard.active_invoices.is_empty(), "Should have no active invoices");
+    assert!(
+        dashboard.active_invoices.is_empty(),
+        "Should have no active invoices"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM users WHERE id = $1")
@@ -1152,12 +1206,22 @@ async fn test_get_investor_portfolio_success() {
 
     // Test get_investor_portfolio
     let result = funding_service.get_investor_portfolio(investor_id).await;
-    assert!(result.is_ok(), "get_investor_portfolio should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "get_investor_portfolio should succeed: {:?}",
+        result.err()
+    );
 
     let portfolio = result.unwrap();
     assert!(portfolio.total_funding > 0.0, "Should have total funding");
-    assert!(portfolio.active_investments > 0, "Should have active investments");
-    assert!(portfolio.priority_allocation > 0.0, "Should have priority allocation");
+    assert!(
+        portfolio.active_investments > 0,
+        "Should have active investments"
+    );
+    assert!(
+        portfolio.priority_allocation > 0.0,
+        "Should have priority allocation"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM investments WHERE pool_id = $1")
@@ -1187,12 +1251,21 @@ async fn test_get_investor_portfolio_empty() {
 
     // Test get_investor_portfolio for investor with no investments
     let result = funding_service.get_investor_portfolio(investor_id).await;
-    assert!(result.is_ok(), "get_investor_portfolio should succeed even with no data");
+    assert!(
+        result.is_ok(),
+        "get_investor_portfolio should succeed even with no data"
+    );
 
     let portfolio = result.unwrap();
     assert_eq!(portfolio.total_funding, 0.0, "Should have 0 funding");
-    assert_eq!(portfolio.active_investments, 0, "Should have 0 active investments");
-    assert_eq!(portfolio.completed_deals, 0, "Should have 0 completed deals");
+    assert_eq!(
+        portfolio.active_investments, 0,
+        "Should have 0 active investments"
+    );
+    assert_eq!(
+        portfolio.completed_deals, 0,
+        "Should have 0 completed deals"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM users WHERE id = $1")

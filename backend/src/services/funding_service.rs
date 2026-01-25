@@ -466,7 +466,10 @@ impl FundingService {
     }
 
     pub async fn get_mitra_dashboard(&self, mitra_id: Uuid) -> AppResult<MitraDashboard> {
-        let (invoices, _) = self.invoice_repo.find_by_exporter(mitra_id, None, 1, 100).await?;
+        let (invoices, _) = self
+            .invoice_repo
+            .find_by_exporter(mitra_id, None, 1, 100)
+            .await?;
 
         let mut total_financing = 0.0;
         let mut total_owed = 0.0;
@@ -632,7 +635,10 @@ impl FundingService {
         page: i32,
         per_page: i32,
     ) -> AppResult<(Vec<FundingPoolResponse>, i64)> {
-        let (pools, total) = self.funding_repo.find_by_exporter(mitra_id, page, per_page).await?;
+        let (pools, total) = self
+            .funding_repo
+            .find_by_exporter(mitra_id, page, per_page)
+            .await?;
 
         let mut responses = Vec::new();
         for pool in pools {
@@ -665,7 +671,9 @@ impl FundingService {
             .funding_repo
             .find_by_invoice(invoice_id)
             .await?
-            .ok_or_else(|| AppError::NotFound("No funding pool found for this invoice".to_string()))?;
+            .ok_or_else(|| {
+                AppError::NotFound("No funding pool found for this invoice".to_string())
+            })?;
 
         self.build_pool_response(pool, Some(invoice))
     }
