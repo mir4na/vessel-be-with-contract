@@ -2,11 +2,11 @@ name: Smart Contract Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master, dev" ]
     paths:
       - 'smart-contract/**'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master, dev" ]
     paths:
       - 'smart-contract/**'
   workflow_dispatch:
