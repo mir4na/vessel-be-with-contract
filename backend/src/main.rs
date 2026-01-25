@@ -435,12 +435,20 @@ async fn main() -> std::io::Result<()> {
                                         web::get().to(handlers::funding::get_mitra_dashboard),
                                     )
                                     .route(
+                                        "/pools",
+                                        web::get().to(handlers::funding::get_mitra_pools),
+                                    )
+                                    .route(
                                         "/invoices",
                                         web::get().to(handlers::funding::get_mitra_active_invoices),
                                     )
                                     .route(
                                         "/invoices/active",
                                         web::get().to(handlers::mitra::get_active_invoices),
+                                    )
+                                    .route(
+                                        "/invoices/{id}/pool",
+                                        web::get().to(handlers::funding::get_pool_by_invoice),
                                     )
                                     .route(
                                         "/pools/{id}/breakdown",

@@ -371,4 +371,42 @@ impl FundingRepository {
 
         Ok(count.0)
     }
+
+    /// Find all funding pools for a specific exporter (mitra) by joining with invoices
+    pub async fn find_by_exporter(
+        &self,
+        exporter_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<FundingPool>, i64)> {
+        let offset = (page - 1) * per_page;
+
+        let pools = sqlx::query_as::<_, FundingPool>(
+            r#"
+            SELECT fp.* FROM funding_pools fp
+            INNER JOIN invoices i ON fp.invoice_id = i.id
+            WHERE i.exporter_id = $1
+            ORDER BY fp.created_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(exporter_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let total: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM funding_pools fp
+            INNER JOIN invoices i ON fp.invoice_id = i.id
+            WHERE i.exporter_id = $1
+            "#,
+        )
+        .bind(exporter_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok((pools, total.0))
+    }
 }

@@ -625,6 +625,51 @@ impl FundingService {
         Ok(closed_pool)
     }
 
+    /// Get all funding pools for a specific mitra (exporter)
+    pub async fn get_mitra_pools(
+        &self,
+        mitra_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<FundingPoolResponse>, i64)> {
+        let (pools, total) = self.funding_repo.find_by_exporter(mitra_id, page, per_page).await?;
+
+        let mut responses = Vec::new();
+        for pool in pools {
+            let invoice = self.invoice_repo.find_by_id(pool.invoice_id).await?;
+            responses.push(self.build_pool_response(pool, invoice)?);
+        }
+
+        Ok((responses, total))
+    }
+
+    /// Get funding pool for a specific invoice (with ownership check)
+    pub async fn get_pool_by_invoice(
+        &self,
+        mitra_id: Uuid,
+        invoice_id: Uuid,
+    ) -> AppResult<FundingPoolResponse> {
+        // First verify ownership
+        let invoice = self
+            .invoice_repo
+            .find_by_id(invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
+
+        if invoice.exporter_id != mitra_id {
+            return Err(AppError::Forbidden("Not the invoice owner".to_string()));
+        }
+
+        // Get the pool
+        let pool = self
+            .funding_repo
+            .find_by_invoice(invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("No funding pool found for this invoice".to_string()))?;
+
+        self.build_pool_response(pool, Some(invoice))
+    }
+
     pub async fn repay_invoice(
         &self,
         exporter_id: Uuid,

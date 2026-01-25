@@ -137,13 +137,20 @@ pub async fn confirm_investment(
 
 /// GET /api/v1/investments
 pub async fn get_my_investments(
-    _state: web::Data<AppState>,
-    _req: HttpRequest,
-    _query: web::Query<PaginationQuery>,
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    query: web::Query<PaginationQuery>,
 ) -> AppResult<HttpResponse> {
-    // Stub - return empty list
-    let empty: Vec<serde_json::Value> = vec![];
-    Ok(HttpResponse::Ok().json(ApiResponse::paginated(empty, 0, 1, 10)))
+    let user_id = get_user_id(&req)?;
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(10);
+
+    let (investments, total) = state
+        .funding_repo
+        .find_investments_by_investor(user_id, page, per_page)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::paginated(investments, total, page, per_page)))
 }
 
 /// GET /api/v1/investments/portfolio
@@ -193,13 +200,56 @@ pub async fn get_mitra_dashboard(
 
 /// GET /api/v1/mitra/invoices
 pub async fn get_mitra_active_invoices(
-    _state: web::Data<AppState>,
-    _req: HttpRequest,
-    _query: web::Query<PaginationQuery>,
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    query: web::Query<PaginationQuery>,
 ) -> AppResult<HttpResponse> {
-    // Stub - return empty list
-    let empty: Vec<serde_json::Value> = vec![];
-    Ok(HttpResponse::Ok().json(ApiResponse::paginated(empty, 0, 1, 10)))
+    let user_id = get_user_id(&req)?;
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(10);
+
+    // Get all invoices for this mitra (can filter by status via query param if needed)
+    let (invoices, total) = state
+        .invoice_repo
+        .find_by_exporter(user_id, None, page, per_page)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::paginated(invoices, total, page, per_page)))
+}
+
+/// GET /api/v1/mitra/pools - List all pools owned by mitra with full details
+pub async fn get_mitra_pools(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    query: web::Query<PaginationQuery>,
+) -> AppResult<HttpResponse> {
+    let user_id = get_user_id(&req)?;
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(10);
+
+    let (pools, total) = state
+        .funding_service
+        .get_mitra_pools(user_id, page, per_page)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::paginated(pools, total, page, per_page)))
+}
+
+/// GET /api/v1/mitra/invoices/{id}/pool - Get pool detail for a specific invoice
+pub async fn get_pool_by_invoice(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+) -> AppResult<HttpResponse> {
+    let user_id = get_user_id(&req)?;
+    let invoice_id = path.into_inner();
+
+    let pool = state
+        .funding_service
+        .get_pool_by_invoice(user_id, invoice_id)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(pool, "Pool detail retrieved")))
 }
 
 // ============ Admin Funding Endpoints ============
