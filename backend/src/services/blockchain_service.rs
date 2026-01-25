@@ -47,8 +47,10 @@ abigen!(
 abigen!(
     InvoicePool,
     r#"[
+        function createPool(uint256 tokenId) external
         function recordInvestment(uint256 tokenId, address investor, uint256 amount) external
         function recordRepayment(uint256 tokenId, uint256 totalAmount, uint256[] calldata investorReturns) external
+        function closePoolEarly(uint256 tokenId) external
     ]"#
 );
 
@@ -814,6 +816,91 @@ impl BlockchainService {
             })?
             .ok_or_else(|| {
                 AppError::BlockchainError("Record repayment transaction failed".to_string())
+            })?;
+
+        Ok(format!("{:?}", receipt.transaction_hash))
+    }
+
+    pub async fn create_pool_on_chain(&self, token_id: i64) -> AppResult<String> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain pool creation (Test Mode)");
+            return Ok("0xTestCreatePoolHash".to_string());
+        }
+
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
+
+        let contract_addr: Address =
+            self.config
+                .invoice_pool_contract_addr
+                .parse()
+                .map_err(|_| {
+                    AppError::BlockchainError("Invalid InvoicePool contract address".to_string())
+                })?;
+
+        let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
+        let contract = InvoicePool::new(contract_addr, Arc::new(client));
+
+        tracing::info!("Creating pool on-chain for token {}", token_id);
+
+        let tx = contract.create_pool(U256::from(token_id));
+
+        let pending_tx = tx.send().await.map_err(|e| {
+            AppError::BlockchainError(format!("Failed to send createPool tx: {}", e))
+        })?;
+
+        let receipt = pending_tx
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!("Failed to wait for createPool receipt: {}", e))
+            })?
+            .ok_or_else(|| {
+                AppError::BlockchainError("createPool transaction failed".to_string())
+            })?;
+
+        Ok(format!("{:?}", receipt.transaction_hash))
+    }
+
+    pub async fn close_pool_on_chain(&self, token_id: i64) -> AppResult<String> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain pool close (Test Mode)");
+            return Ok("0xTestClosePoolHash".to_string());
+        }
+
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
+
+        let contract_addr: Address =
+            self.config
+                .invoice_pool_contract_addr
+                .parse()
+                .map_err(|_| {
+                    AppError::BlockchainError("Invalid InvoicePool contract address".to_string())
+                })?;
+
+        let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
+        let contract = InvoicePool::new(contract_addr, Arc::new(client));
+
+        tracing::info!("Closing pool on-chain for token {}", token_id);
+
+        let tx = contract.close_pool_early(U256::from(token_id));
+
+        let pending_tx = tx.send().await.map_err(|e| {
+            AppError::BlockchainError(format!("Failed to send closePoolEarly tx: {}", e))
+        })?;
+
+        let receipt = pending_tx
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!(
+                    "Failed to wait for closePoolEarly receipt: {}",
+                    e
+                ))
+            })?
+            .ok_or_else(|| {
+                AppError::BlockchainError("closePoolEarly transaction failed".to_string())
             })?;
 
         Ok(format!("{:?}", receipt.transaction_hash))

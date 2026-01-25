@@ -78,6 +78,7 @@ pub async fn list(
             user_id,
             query.page.unwrap_or(1),
             query.per_page.unwrap_or(10),
+            query.status.clone(),
         )
         .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::paginated(
@@ -143,12 +144,16 @@ pub async fn delete(
 
 /// POST /api/v1/invoices/{id}/submit - Submit for review (not implemented)
 pub async fn submit(
-    _state: web::Data<AppState>,
+    state: web::Data<AppState>,
     _req: HttpRequest,
-    _path: web::Path<Uuid>,
+    path: web::Path<Uuid>,
 ) -> AppResult<HttpResponse> {
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message(
-        "Invoice already submitted during creation",
+    let invoice_id = path.into_inner();
+    let invoice = state.invoice_service.submit_invoice(invoice_id).await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        invoice,
+        "Invoice submitted for review successfully",
     )))
 }
 
@@ -365,8 +370,14 @@ pub async fn approve(
         .update_status(invoice.id, "tokenized")
         .await?;
 
-    // 3. Create Funding Pool
+    // 3. Create Funding Pool (DB)
     let _pool = state.funding_service.create_pool(invoice.id).await?;
+
+    // 4. Create Pool on-chain
+    let _pool_tx = state
+        .blockchain_service
+        .create_pool_on_chain(token_id)
+        .await?;
 
     // Update status to Funding (since pool is open)
     let invoice = state

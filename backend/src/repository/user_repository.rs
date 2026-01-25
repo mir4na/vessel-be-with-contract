@@ -15,6 +15,21 @@ impl UserRepository {
         Self { pool }
     }
 
+    pub async fn find_by_ids(&self, ids: &[Uuid]) -> AppResult<Vec<User>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let users = sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(users)
+    }
+
     pub async fn create(
         &self,
         email: &str,

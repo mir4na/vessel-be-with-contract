@@ -304,6 +304,20 @@ contract InvoicePool is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /**
+     * @dev Admin closes a pool early (stops accepting investments, refunds are handled off-chain)
+     */
+    function closePoolEarly(uint256 tokenId) external onlyRole(OPERATOR_ROLE) {
+        Pool storage pool = pools[tokenId];
+        require(pool.targetAmount > 0, "Pool does not exist");
+        require(pool.status == PoolStatus.Open || pool.status == PoolStatus.Filled, "Pool not active");
+
+        pool.status = PoolStatus.Closed;
+        pool.closedAt = block.timestamp;
+
+        emit PoolClosed(tokenId);
+    }
+
+    /**
      * @dev Mark pool as defaulted
      */
     function markDefaulted(uint256 tokenId) external onlyRole(OPERATOR_ROLE) {

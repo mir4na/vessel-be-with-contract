@@ -107,15 +107,41 @@ impl InvoiceService {
             .update_interest_rates(invoice.id, priority_rate, catalyst_rate)
             .await?;
 
-        // Submit for review
-        self.invoice_repo
-            .update_status(invoice.id, "pending_review")
-            .await?;
-
+        // Return invoice in draft status
+        // Review submission happens via submit_invoice endpoint
         self.invoice_repo
             .find_by_id(invoice.id)
             .await?
             .ok_or_else(|| AppError::InternalError("Failed to fetch created invoice".to_string()))
+    }
+
+    pub async fn submit_invoice(&self, id: Uuid) -> AppResult<Invoice> {
+        let invoice = self.get_invoice(id).await?;
+
+        if invoice.status != "draft" {
+            return Err(AppError::BadRequest(
+                "Only draft invoices can be submitted".to_string(),
+            ));
+        }
+
+        // Validate documents
+        let documents = self.invoice_repo.find_documents_by_invoice(id).await?;
+        if documents.is_empty() {
+            return Err(AppError::ValidationError(
+                "Cannot submit invoice without documents".to_string(),
+            ));
+        }
+
+        // Calculate and update document completeness score
+        let doc_score = self.calculate_document_score(&documents);
+        // Scale to percentage: 3 required docs = 30 points max from required (out of 35 cap)
+        let score_percentage = ((doc_score as f64 / 35.0) * 100.0).round() as i32;
+        self.invoice_repo.update_document_score(id, score_percentage).await?;
+
+        // Update status to pending_review
+        self.invoice_repo
+            .update_status(id, "pending_review")
+            .await
     }
 
     pub async fn get_invoice(&self, id: Uuid) -> AppResult<Invoice> {
@@ -133,9 +159,10 @@ impl InvoiceService {
         exporter_id: Uuid,
         page: i32,
         per_page: i32,
+        status: Option<String>,
     ) -> AppResult<(Vec<Invoice>, i64)> {
         self.invoice_repo
-            .find_by_exporter(exporter_id, page, per_page)
+            .find_by_exporter(exporter_id, status, page, per_page)
             .await
     }
 
@@ -144,15 +171,49 @@ impl InvoiceService {
     }
 
     pub async fn list_pending(&self, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
-        self.invoice_repo
+        let (mut invoices, total) = self
+            .invoice_repo
             .find_by_status("pending_review", page, per_page)
-            .await
+            .await?;
+
+        // Populate exporter details for admin review
+        self.populate_exporters(&mut invoices).await?;
+
+        Ok((invoices, total))
     }
 
     pub async fn list_approved(&self, page: i32, per_page: i32) -> AppResult<(Vec<Invoice>, i64)> {
-        self.invoice_repo
+        let (mut invoices, total) = self
+            .invoice_repo
             .find_by_status("approved", page, per_page)
-            .await
+            .await?;
+            
+        // Populate exporter details
+        self.populate_exporters(&mut invoices).await?;
+
+        Ok((invoices, total))
+    }
+
+    // Helper to populate exporter details
+    async fn populate_exporters(&self, invoices: &mut [Invoice]) -> AppResult<()> {
+        let exporter_ids: Vec<Uuid> = invoices.iter().map(|i| i.exporter_id).collect();
+        // Dedup ids
+        let mut unique_ids = exporter_ids.clone();
+        unique_ids.sort();
+        unique_ids.dedup();
+
+        let users = self.user_repo.find_by_ids(&unique_ids).await?;
+        let user_map: std::collections::HashMap<Uuid, crate::models::User> = users
+            .into_iter()
+            .map(|u| (u.id, u))
+            .collect();
+
+        for invoice in invoices {
+            if let Some(user) = user_map.get(&invoice.exporter_id) {
+                invoice.exporter = Some(user.clone());
+            }
+        }
+        Ok(())
     }
 
     pub async fn approve(
@@ -374,7 +435,7 @@ impl InvoiceService {
     fn calculate_document_score(&self, documents: &[InvoiceDocument]) -> i32 {
         let mut score = 0;
 
-        let required_types = vec!["invoice_pdf", "bill_of_lading", "purchase_order"];
+        let required_types = vec!["commercial_invoice", "bill_of_lading", "purchase_order"];
         let optional_types = vec!["packing_list", "certificate_of_origin", "insurance"];
 
         for doc_type in required_types {

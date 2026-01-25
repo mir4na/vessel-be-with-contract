@@ -216,14 +216,13 @@ pub async fn disburse(
 
 /// POST /api/v1/admin/pools/{id}/close
 pub async fn close_pool_and_notify(
-    _state: web::Data<AppState>,
+    state: web::Data<AppState>,
     _req: HttpRequest,
-    _path: web::Path<Uuid>,
+    path: web::Path<Uuid>,
 ) -> AppResult<HttpResponse> {
-    // Stub
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message(
-        "Pool closed and investors notified",
-    )))
+    let pool_id = path.into_inner();
+    let pool = state.funding_service.close_pool(pool_id).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::success(pool, "Pool closed successfully")))
 }
 
 /// POST /api/v1/admin/invoices/{id}/repay (Used by Mitra/Admin)

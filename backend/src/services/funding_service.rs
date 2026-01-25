@@ -466,7 +466,7 @@ impl FundingService {
     }
 
     pub async fn get_mitra_dashboard(&self, mitra_id: Uuid) -> AppResult<MitraDashboard> {
-        let (invoices, _) = self.invoice_repo.find_by_exporter(mitra_id, 1, 100).await?;
+        let (invoices, _) = self.invoice_repo.find_by_exporter(mitra_id, None, 1, 100).await?;
 
         let mut total_financing = 0.0;
         let mut total_owed = 0.0;
@@ -583,6 +583,46 @@ impl FundingService {
             catalyst_percentage_funded: catalyst_pct,
             invoice,
         })
+    }
+
+    pub async fn close_pool(&self, pool_id: Uuid) -> AppResult<FundingPool> {
+        let pool = self
+            .funding_repo
+            .find_by_id(pool_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
+
+        if pool.status != "open" && pool.status != "filled" {
+            return Err(AppError::BadRequest(
+                "Pool can only be closed when open or filled".to_string(),
+            ));
+        }
+
+        // Close on-chain
+        let nft = self
+            .invoice_repo
+            .find_nft_by_invoice(pool.invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("NFT record not found".to_string()))?;
+
+        let token_id = nft.token_id.ok_or_else(|| {
+            AppError::InternalError("Token ID missing from NFT record".to_string())
+        })?;
+
+        let _tx_hash = self
+            .blockchain_service
+            .close_pool_on_chain(token_id)
+            .await?;
+
+        // Close in DB
+        let closed_pool = self.funding_repo.set_closed(pool_id).await?;
+
+        // Update invoice status back to tokenized (pool closed without full funding)
+        self.invoice_repo
+            .update_status(pool.invoice_id, "tokenized")
+            .await?;
+
+        Ok(closed_pool)
     }
 
     pub async fn repay_invoice(

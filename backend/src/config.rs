@@ -131,7 +131,10 @@ impl Config {
                 .unwrap_or(168),
 
             // Blockchain (Base Network - replacing Lisk Sepolia)
-            private_key: get_env_or_default("PRIVATE_KEY", ""),
+            private_key: {
+                let pk = get_env_or_default("PLATFORM_PRIVATE_KEY", "");
+                if pk.is_empty() { get_env_or_default("PRIVATE_KEY", "") } else { pk }
+            },
             blockchain_rpc_url: get_env_or_default(
                 "BLOCKCHAIN_RPC_URL",
                 "https://mainnet.base.org",
@@ -141,7 +144,10 @@ impl Config {
                 .unwrap_or(8453), // Base Mainnet: 8453, Base Sepolia: 84532
             block_explorer_url: get_env_or_default("BLOCK_EXPLORER_URL", "https://basescan.org"),
             invoice_nft_contract_addr: get_env_or_default("INVOICE_NFT_CONTRACT_ADDRESS", ""),
-            invoice_pool_contract_addr: get_env_or_default("INVOICE_POOL_CONTRACT_ADDRESS", ""),
+            invoice_pool_contract_addr: {
+                let addr = get_env_or_default("FUNDING_POOL_CONTRACT_ADDRESS", "");
+                if addr.is_empty() { get_env_or_default("INVOICE_POOL_CONTRACT_ADDRESS", "") } else { addr }
+            },
             idrx_token_contract_addr: get_env_or_default("IDRX_TOKEN_CONTRACT_ADDRESS", ""),
             platform_wallet_address: get_env_or_default("PLATFORM_WALLET_ADDRESS", ""),
 

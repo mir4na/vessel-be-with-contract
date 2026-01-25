@@ -70,24 +70,45 @@ impl InvoiceRepository {
     pub async fn find_by_exporter(
         &self,
         exporter_id: Uuid,
+        status: Option<String>,
         page: i32,
         per_page: i32,
     ) -> AppResult<(Vec<Invoice>, i64)> {
         let offset = (page - 1) * per_page;
 
-        let invoices = sqlx::query_as::<_, Invoice>(
-            "SELECT * FROM invoices WHERE exporter_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
-        )
-        .bind(exporter_id)
-        .bind(per_page)
-        .bind(offset)
-        .fetch_all(&self.pool)
-        .await?;
-
-        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM invoices WHERE exporter_id = $1")
+        let invoices = if let Some(ref s) = status {
+            sqlx::query_as::<_, Invoice>(
+                "SELECT * FROM invoices WHERE exporter_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4"
+            )
             .bind(exporter_id)
-            .fetch_one(&self.pool)
-            .await?;
+            .bind(s)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, Invoice>(
+                "SELECT * FROM invoices WHERE exporter_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+            )
+            .bind(exporter_id)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        let total: (i64,) = if let Some(ref s) = status {
+             sqlx::query_as("SELECT COUNT(*) FROM invoices WHERE exporter_id = $1 AND status = $2")
+                .bind(exporter_id)
+                .bind(s)
+                .fetch_one(&self.pool)
+                .await?
+        } else {
+            sqlx::query_as("SELECT COUNT(*) FROM invoices WHERE exporter_id = $1")
+                .bind(exporter_id)
+                .fetch_one(&self.pool)
+                .await?
+        };
 
         Ok((invoices, total.0))
     }
@@ -143,6 +164,18 @@ impl InvoiceRepository {
         )
         .bind(id)
         .bind(status)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(invoice)
+    }
+
+    pub async fn update_document_score(&self, id: Uuid, score: i32) -> AppResult<Invoice> {
+        let invoice = sqlx::query_as::<_, Invoice>(
+            "UPDATE invoices SET document_complete_score = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(score)
         .fetch_one(&self.pool)
         .await?;
 
