@@ -331,6 +331,10 @@ async fn main() -> std::io::Result<()> {
                                         web::get().to(handlers::invoice::list_fundable),
                                     )
                                     .route("/{id}", web::get().to(handlers::invoice::get))
+                                    .route(
+                                        "/{id}/detail",
+                                        web::get().to(handlers::invoice::get_detail),
+                                    )
                                     .route("/{id}", web::put().to(handlers::invoice::update))
                                     .route("/{id}", web::delete().to(handlers::invoice::delete))
                                     .route(

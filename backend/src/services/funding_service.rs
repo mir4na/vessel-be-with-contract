@@ -399,28 +399,32 @@ impl FundingService {
 
             // Notify exporter
             if let Some(exporter) = self.user_repo.find_by_id(invoice.exporter_id).await? {
-                let _ = self
-                    .email_service
-                    .send_pool_funded_notification(
-                        &exporter.email,
-                        &invoice.invoice_number,
-                        pool.target_amount.to_f64().unwrap_or(0.0),
-                    )
-                    .await;
+                if let Some(email) = &exporter.email {
+                    let _ = self
+                        .email_service
+                        .send_pool_funded_notification(
+                            email,
+                            &invoice.invoice_number,
+                            pool.target_amount.to_f64().unwrap_or(0.0),
+                        )
+                        .await;
+                }
             }
         }
 
         // Send confirmation email with on-chain tx details
-        let _ = self
-            .email_service
-            .send_investment_confirmation(
-                &investor.email,
-                &invoice.invoice_number,
-                amount.to_f64().unwrap_or(0.0),
-                &req.tranche,
-                expected_return.to_f64().unwrap_or(0.0),
-            )
-            .await;
+        if let Some(email) = &investor.email {
+            let _ = self
+                .email_service
+                .send_investment_confirmation(
+                    email,
+                    &invoice.invoice_number,
+                    amount.to_f64().unwrap_or(0.0),
+                    &req.tranche,
+                    expected_return.to_f64().unwrap_or(0.0),
+                )
+                .await;
+        }
 
         tracing::info!(
             "Investment recorded: {} IDRX in pool {} by investor {} - viewable at {}",
@@ -456,6 +460,76 @@ impl FundingService {
             active_investments: active_count as i32,
             completed_deals: completed_count as i32,
         })
+    }
+
+    pub async fn get_investor_investments(
+        &self,
+        investor_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<crate::models::InvestorActiveInvestment>, i64)> {
+        let (investments, total) = self
+            .funding_repo
+            .find_investments_by_investor(investor_id, page, per_page)
+            .await?;
+
+        let mut enriched_investments = Vec::new();
+        for inv in investments {
+            let pool = self
+                .funding_repo
+                .find_by_id(inv.pool_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
+
+            let invoice = self
+                .invoice_repo
+                .find_by_id(pool.invoice_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
+
+            let days_remaining = (pool.deadline.unwrap_or(Utc::now().naive_utc())
+                - Utc::now().naive_utc())
+            .num_days();
+
+            // Status display
+            let (status_display, status_color) = match inv.status.as_str() {
+                "active" => ("Active", "green"),
+                "repaid" => ("Repaid", "blue"),
+                "defaulted" => ("Defaulted", "red"),
+                _ => (inv.status.as_str(), "gray"),
+            };
+
+            enriched_investments.push(crate::models::InvestorActiveInvestment {
+                investment_id: inv.id,
+                project_name: format!("Project {}", invoice.invoice_number),
+                invoice_number: invoice.invoice_number,
+                buyer_name: invoice.buyer_name,
+                buyer_country: invoice.buyer_country.clone(),
+                buyer_flag: "🌍".to_string(), // Simplified logic for flag
+                tranche: inv.tranche.clone(),
+                tranche_display: if inv.tranche == "priority" {
+                    "Priority".to_string()
+                } else {
+                    "Catalyst".to_string()
+                },
+                principal: inv.amount.to_f64().unwrap_or(0.0),
+                interest_rate: if inv.tranche == "priority" {
+                    pool.priority_interest_rate.to_f64().unwrap_or(0.0)
+                } else {
+                    pool.catalyst_interest_rate.to_f64().unwrap_or(0.0)
+                },
+                estimated_return: (inv.expected_return - inv.amount).to_f64().unwrap_or(0.0),
+                total_expected: inv.expected_return.to_f64().unwrap_or(0.0),
+                due_date: invoice.due_date.and_hms_opt(0, 0, 0).unwrap(),
+                days_remaining: days_remaining as i32,
+                status: inv.status.clone(),
+                status_display: status_display.to_string(),
+                status_color: status_color.to_string(),
+                invested_at: inv.invested_at,
+            });
+        }
+
+        Ok((enriched_investments, total))
     }
 
     pub async fn get_mitra_dashboard(&self, mitra_id: Uuid) -> AppResult<MitraDashboard> {

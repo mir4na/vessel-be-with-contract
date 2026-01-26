@@ -108,8 +108,8 @@ impl UserRepository {
     /// Create investor account with wallet only (no email/password required)
     pub async fn create_investor_with_wallet(&self, wallet_address: &str) -> AppResult<User> {
         let wallet = wallet_address.to_lowercase();
-        // Generate a unique placeholder email based on wallet address
-        let email = format!("{}@wallet.vessel.io", &wallet[2..10]);
+        // No email for wallet-only investors
+        let email: Option<String> = None;
 
         let user = sqlx::query_as::<_, User>(
             r#"

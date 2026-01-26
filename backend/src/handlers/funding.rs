@@ -146,11 +146,20 @@ pub async fn get_my_investments(
     let per_page = query.per_page.unwrap_or(10);
 
     let (investments, total) = state
-        .funding_repo
-        .find_investments_by_investor(user_id, page, per_page)
+        .funding_service
+        .get_investor_investments(user_id, page, per_page)
         .await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::paginated(investments, total, page, per_page)))
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        crate::models::ActiveInvestmentListResponse {
+            investments,
+            total,
+            page,
+            per_page,
+            total_pages: (total as f64 / per_page as f64).ceil() as i32,
+        },
+        "Investments retrieved",
+    )))
 }
 
 /// GET /api/v1/investments/portfolio

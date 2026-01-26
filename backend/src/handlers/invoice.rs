@@ -120,6 +120,20 @@ pub async fn get(
     )))
 }
 
+/// GET /api/v1/invoices/{id}/detail
+pub async fn get_detail(
+    state: web::Data<AppState>,
+    _req: HttpRequest,
+    path: web::Path<Uuid>,
+) -> AppResult<HttpResponse> {
+    let invoice_id = path.into_inner();
+    let invoice = state.invoice_service.get_invoice_detail(invoice_id).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        invoice,
+        "Invoice detail retrieved successfully",
+    )))
+}
+
 /// PUT /api/v1/invoices/{id} - Not implemented (invoices are immutable after creation)
 pub async fn update(
     _state: web::Data<AppState>,

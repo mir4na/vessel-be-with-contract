@@ -403,6 +403,7 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         // Add exporter_wallet_address to invoices
         r#"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS exporter_wallet_address VARCHAR(42);"#,
         // ============ CLEANUP MIGRATIONS (Balance & KYC Removal) ============
+        r#"ALTER TABLE users ALTER COLUMN email DROP NOT NULL;"#,
         r#"ALTER TABLE users DROP COLUMN IF EXISTS balance_idrx;"#,
         r#"DROP TABLE IF EXISTS user_identities;"#,
         r#"DROP TABLE IF EXISTS balance_transactions;"#,

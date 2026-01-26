@@ -185,10 +185,12 @@ impl MitraService {
 
         // Send notification email
         if let Some(user) = self.user_repo.find_by_id(application.user_id).await? {
-            let _ = self
-                .email_service
-                .send_mitra_approval_notification(&user.email, &approved.company_name)
-                .await;
+            if let Some(email) = &user.email {
+                let _ = self
+                    .email_service
+                    .send_mitra_approval_notification(email, &approved.company_name)
+                    .await;
+            }
         }
 
         Ok(approved)

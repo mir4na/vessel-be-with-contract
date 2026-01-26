@@ -139,12 +139,16 @@ impl AuthService {
         }
 
         // Generate tokens
-        let access_token =
-            self.jwt_manager
-                .generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token =
-            self.jwt_manager
-                .generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token = self.jwt_manager.generate_access_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
+        let refresh_token = self.jwt_manager.generate_refresh_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
 
         Ok(LoginResponse {
             user,
@@ -200,12 +204,16 @@ impl AuthService {
         let user = self.user_repo.create_investor_with_wallet(&wallet).await?;
 
         // Generate tokens
-        let access_token =
-            self.jwt_manager
-                .generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token =
-            self.jwt_manager
-                .generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token = self.jwt_manager.generate_access_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
+        let refresh_token = self.jwt_manager.generate_refresh_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
 
         Ok(LoginResponse {
             user,
@@ -349,12 +357,16 @@ impl AuthService {
         }
 
         // Generate tokens
-        let access_token =
-            self.jwt_manager
-                .generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token =
-            self.jwt_manager
-                .generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token = self.jwt_manager.generate_access_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
+        let refresh_token = self.jwt_manager.generate_refresh_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
 
         Ok(LoginResponse {
             user,
@@ -391,12 +403,16 @@ impl AuthService {
         }
 
         // Generate tokens
-        let access_token =
-            self.jwt_manager
-                .generate_access_token(user.id, &user.email, &user.role)?;
-        let refresh_token =
-            self.jwt_manager
-                .generate_refresh_token(user.id, &user.email, &user.role)?;
+        let access_token = self.jwt_manager.generate_access_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
+        let refresh_token = self.jwt_manager.generate_refresh_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
 
         Ok(LoginResponse {
             user,
@@ -421,12 +437,16 @@ impl AuthService {
             .ok_or(AppError::InvalidToken)?;
 
         // Generate new tokens
-        let new_access_token =
-            self.jwt_manager
-                .generate_access_token(user.id, &user.email, &user.role)?;
-        let new_refresh_token =
-            self.jwt_manager
-                .generate_refresh_token(user.id, &user.email, &user.role)?;
+        let new_access_token = self.jwt_manager.generate_access_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
+        let new_refresh_token = self.jwt_manager.generate_refresh_token(
+            user.id,
+            user.email.as_deref().unwrap_or(""),
+            &user.role,
+        )?;
 
         Ok((new_access_token, new_refresh_token))
     }

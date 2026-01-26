@@ -122,7 +122,7 @@ async fn test_register_mitra_success() {
     );
     let response = result.unwrap();
 
-    assert_eq!(response.user.email, email);
+    assert_eq!(response.user.email.as_deref(), Some(email));
     assert_eq!(response.user.role, "mitra");
 
     // 5. Verify MitraApplication exists in DB

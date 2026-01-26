@@ -154,6 +154,19 @@ impl InvoiceService {
         Ok(invoice)
     }
 
+    pub async fn get_invoice_detail(&self, id: Uuid) -> AppResult<Invoice> {
+        let mut invoice = self
+            .invoice_repo
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
+
+        let documents = self.invoice_repo.find_documents_by_invoice(id).await?;
+        invoice.documents = Some(documents);
+
+        Ok(invoice)
+    }
+
     pub async fn list_by_exporter(
         &self,
         exporter_id: Uuid,
