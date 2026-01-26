@@ -48,8 +48,8 @@ async fn create_test_user(pool: &PgPool, email: &str) -> Uuid {
 
     let user_id = Uuid::new_v4();
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, cooperative_agreement, email_verified, profile_completed, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'calon_mitra', true, true, true, true, false, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, cooperative_agreement, email_verified, profile_completed)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'calon_mitra', true, true, true, true, false)"#
     )
     .bind(user_id)
     .bind(email)
@@ -69,8 +69,8 @@ async fn create_test_admin(pool: &PgPool, email: &str) -> Uuid {
 
     let admin_id = Uuid::new_v4();
     sqlx::query!(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, cooperative_agreement, email_verified, profile_completed, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'admin', 'admin', true, true, true, true, true, 0)"#,
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, cooperative_agreement, email_verified, profile_completed)
+           VALUES ($1, $2, $3, 'hash', 'admin', 'admin', true, true, true, true, true)"#,
         admin_id, email, &format!("admin_{}", admin_id.simple())
     )
     .execute(pool)

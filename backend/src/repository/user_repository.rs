@@ -1,9 +1,8 @@
-use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppResult;
-use crate::models::{BankAccount, User, UserIdentity, UserProfile};
+use crate::models::{User, UserProfile};
 
 #[derive(Clone)]
 pub struct UserRepository {
@@ -37,8 +36,8 @@ impl UserRepository {
     ) -> AppResult<User> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (email, username, password_hash, role, is_verified, is_active, cooperative_agreement, member_status, balance_idrx, email_verified, profile_completed)
-            VALUES ($1, $2, $3, $4, false, true, false, 'calon_anggota_pendana', 0, true, false)
+            INSERT INTO users (email, username, password_hash, role, is_verified, is_active, cooperative_agreement, member_status, email_verified, profile_completed)
+            VALUES ($1, $2, $3, $4, false, true, false, 'calon_anggota_pendana', true, false)
             RETURNING *
             "#,
         )
@@ -116,10 +115,10 @@ impl UserRepository {
             r#"
             INSERT INTO users (
                 email, username, password_hash, role, is_verified, is_active,
-                cooperative_agreement, member_status, balance_idrx, email_verified,
+                cooperative_agreement, member_status, email_verified,
                 profile_completed, wallet_address
             )
-            VALUES ($1, $2, '', 'investor', true, true, true, 'calon_anggota_pendana', 0, false, false, $3)
+            VALUES ($1, $2, '', 'investor', true, true, true, 'calon_anggota_pendana', false, false, $3)
             RETURNING *
             "#,
         )
@@ -149,16 +148,6 @@ impl UserRepository {
     ) -> AppResult<()> {
         sqlx::query("UPDATE users SET wallet_address = $1, updated_at = NOW() WHERE id = $2")
             .bind(wallet_address)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn update_balance(&self, user_id: Uuid, new_balance: Decimal) -> AppResult<()> {
-        sqlx::query("UPDATE users SET balance_idrx = $1, updated_at = NOW() WHERE id = $2")
-            .bind(new_balance)
             .bind(user_id)
             .execute(&self.pool)
             .await?;
@@ -288,107 +277,7 @@ impl UserRepository {
         Ok(profile)
     }
 
-    // Bank account methods
-    pub async fn create_bank_account(
-        &self,
-        user_id: Uuid,
-        bank_code: &str,
-        bank_name: &str,
-        account_number: &str,
-        account_name: &str,
-    ) -> AppResult<BankAccount> {
-        let account = sqlx::query_as::<_, BankAccount>(
-            r#"
-            INSERT INTO bank_accounts (user_id, bank_code, bank_name, account_number, account_name, is_primary)
-            VALUES ($1, $2, $3, $4, $5, true)
-            RETURNING *
-            "#,
-        )
-        .bind(user_id)
-        .bind(bank_code)
-        .bind(bank_name)
-        .bind(account_number)
-        .bind(account_name)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(account)
-    }
-
-    pub async fn find_primary_bank_account(&self, user_id: Uuid) -> AppResult<Option<BankAccount>> {
-        let account = sqlx::query_as::<_, BankAccount>(
-            "SELECT * FROM bank_accounts WHERE user_id = $1 AND is_primary = true",
-        )
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(account)
-    }
-
-    pub async fn update_bank_account(
-        &self,
-        user_id: Uuid,
-        bank_code: &str,
-        bank_name: &str,
-        account_number: &str,
-        account_name: &str,
-    ) -> AppResult<BankAccount> {
-        let account = sqlx::query_as::<_, BankAccount>(
-            r#"
-            UPDATE bank_accounts
-            SET bank_code = $2, bank_name = $3, account_number = $4, account_name = $5, updated_at = NOW()
-            WHERE user_id = $1 AND is_primary = true
-            RETURNING *
-            "#,
-        )
-        .bind(user_id)
-        .bind(bank_code)
-        .bind(bank_name)
-        .bind(account_number)
-        .bind(account_name)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(account)
-    }
-
     // Identity methods
-    pub async fn create_identity(
-        &self,
-        user_id: Uuid,
-        nik: &str,
-        full_name: &str,
-        ktp_photo_url: &str,
-        selfie_url: &str,
-    ) -> AppResult<UserIdentity> {
-        let identity = sqlx::query_as::<_, UserIdentity>(
-            r#"
-            INSERT INTO user_identities (user_id, nik, full_name, ktp_photo_url, selfie_url)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING *
-            "#,
-        )
-        .bind(user_id)
-        .bind(nik)
-        .bind(full_name)
-        .bind(ktp_photo_url)
-        .bind(selfie_url)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(identity)
-    }
-
-    pub async fn find_identity_by_user_id(&self, user_id: Uuid) -> AppResult<Option<UserIdentity>> {
-        let identity =
-            sqlx::query_as::<_, UserIdentity>("SELECT * FROM user_identities WHERE user_id = $1")
-                .bind(user_id)
-                .fetch_optional(&self.pool)
-                .await?;
-
-        Ok(identity)
-    }
 
     // Additional methods needed by handlers
     pub async fn update_wallet(&self, user_id: Uuid, wallet_address: &str) -> AppResult<User> {

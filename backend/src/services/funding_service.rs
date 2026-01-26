@@ -447,12 +447,6 @@ impl FundingService {
             .get_investor_portfolio_stats(investor_id)
             .await?;
 
-        let user = self
-            .user_repo
-            .find_by_id(investor_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
-
         Ok(InvestorPortfolio {
             total_funding: total_funding.to_f64().unwrap_or(0.0),
             total_expected_gain: total_expected.to_f64().unwrap_or(0.0),
@@ -461,7 +455,6 @@ impl FundingService {
             catalyst_allocation: catalyst_alloc.to_f64().unwrap_or(0.0),
             active_investments: active_count as i32,
             completed_deals: completed_count as i32,
-            available_balance: user.balance_idrx.to_f64().unwrap_or(0.0),
         })
     }
 

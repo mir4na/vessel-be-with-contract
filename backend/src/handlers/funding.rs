@@ -336,5 +336,5 @@ pub struct ConfirmInvestmentRequest {
 #[allow(dead_code)] // Fields used for request deserialization
 pub struct ExporterDisbursementRequest {
     pub pool_id: Uuid,
-    pub bank_account_id: Option<Uuid>,
+    // Bank account removed
 }

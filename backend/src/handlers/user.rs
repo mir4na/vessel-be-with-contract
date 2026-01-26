@@ -146,13 +146,10 @@ pub async fn get_personal_data(
         .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
     let profile = state.user_repo.find_profile_by_user_id(user_id).await?;
-    let identity = state.user_repo.find_identity_by_user_id(user_id).await?;
-
     Ok(HttpResponse::Ok().json(ApiResponse::success(
         serde_json::json!({
             "user": user,
-            "profile": profile,
-            "identity": identity
+            "profile": profile
         }),
         "Personal data retrieved",
     )))

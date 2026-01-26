@@ -266,7 +266,6 @@ pub struct InvestorPortfolio {
     pub catalyst_allocation: f64,
     pub active_investments: i32,
     pub completed_deals: i32,
-    pub available_balance: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -393,7 +392,7 @@ pub struct InvestWithWalletRequest {
 #[derive(Debug, Deserialize)]
 pub struct ExporterDisbursementRequest {
     pub pool_id: Uuid,
-    pub bank_account_id: Option<Uuid>,
+    // Bank account removed, disbursement goes to registered wallet
 }
 
 #[derive(Debug, Deserialize)]
@@ -402,8 +401,6 @@ pub struct ProcessRepaymentRequest {
     pub tx_hash: Option<String>,
     pub notes: Option<String>,
 }
-
-// Note: CreateVaPaymentRequest is defined in mitra.rs - use that instead
 
 #[derive(Debug, Serialize)]
 pub struct RepaymentBreakdown {

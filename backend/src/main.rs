@@ -272,10 +272,6 @@ async fn main() -> std::io::Result<()> {
                                         web::post().to(handlers::user::upload_document),
                                     )
                                     .route(
-                                        "/balance",
-                                        web::get().to(handlers::payment::get_balance),
-                                    )
-                                    .route(
                                         "/profile/data",
                                         web::get().to(handlers::user::get_personal_data),
                                     )
@@ -315,16 +311,6 @@ async fn main() -> std::io::Result<()> {
                                         web::get().to(
                                             handlers::currency::calculate_estimated_disbursement,
                                         ),
-                                    ),
-                            )
-                            // Payment routes
-                            .service(
-                                web::scope("/payments")
-                                    .route("/deposit", web::post().to(handlers::payment::deposit))
-                                    .route("/withdraw", web::post().to(handlers::payment::withdraw))
-                                    .route(
-                                        "/balance",
-                                        web::get().to(handlers::payment::get_balance),
                                     ),
                             )
                             // Invoice routes

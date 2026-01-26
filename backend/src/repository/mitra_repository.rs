@@ -1,10 +1,8 @@
-use chrono::{DateTime, Utc};
-use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppResult;
-use crate::models::{MitraApplication, VirtualAccount};
+use crate::models::MitraApplication;
 
 #[derive(Clone)]
 pub struct MitraRepository {
@@ -192,71 +190,5 @@ impl MitraRepository {
         .await?;
 
         Ok(app)
-    }
-
-    // Virtual Account methods
-    pub async fn create_virtual_account(
-        &self,
-        pool_id: Uuid,
-        user_id: Uuid,
-        va_number: &str,
-        bank_code: &str,
-        bank_name: &str,
-        amount: Decimal,
-        expires_at: DateTime<Utc>,
-    ) -> AppResult<VirtualAccount> {
-        let va = sqlx::query_as::<_, VirtualAccount>(
-            r#"
-            INSERT INTO virtual_accounts (pool_id, user_id, va_number, bank_code, bank_name, amount, expires_at, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
-            RETURNING *
-            "#,
-        )
-        .bind(pool_id)
-        .bind(user_id)
-        .bind(va_number)
-        .bind(bank_code)
-        .bind(bank_name)
-        .bind(amount)
-        .bind(expires_at)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(va)
-    }
-
-    pub async fn find_virtual_account(&self, id: Uuid) -> AppResult<Option<VirtualAccount>> {
-        let va =
-            sqlx::query_as::<_, VirtualAccount>("SELECT * FROM virtual_accounts WHERE id = $1")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
-
-        Ok(va)
-    }
-
-    pub async fn find_virtual_account_by_pool(
-        &self,
-        pool_id: Uuid,
-    ) -> AppResult<Option<VirtualAccount>> {
-        let va = sqlx::query_as::<_, VirtualAccount>(
-            "SELECT * FROM virtual_accounts WHERE pool_id = $1 AND status = 'pending' ORDER BY created_at DESC LIMIT 1"
-        )
-        .bind(pool_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(va)
-    }
-
-    pub async fn mark_va_paid(&self, id: Uuid) -> AppResult<VirtualAccount> {
-        let va = sqlx::query_as::<_, VirtualAccount>(
-            "UPDATE virtual_accounts SET status = 'paid', paid_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *"
-        )
-        .bind(id)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(va)
     }
 }

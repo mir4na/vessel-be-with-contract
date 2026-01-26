@@ -93,8 +93,8 @@ async fn create_investor(pool: &PgPool, base_email: &str) -> Uuid {
     let wallet = format!("0xInvest_{}", user_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'investor', 'individual', true, true, $4, 1000000000)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'investor', 'individual', true, true, $4)"#
     )
     .bind(user_id)
     .bind(email)
@@ -119,13 +119,13 @@ async fn create_mitra_and_invoice(
     let wallet = format!("0xMitra_{}", user_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4)"#
     )
     .bind(user_id)
     .bind(email)
     .bind(username)
-    .bind(wallet.clone()) // Clone wallet here
+    .bind(wallet.clone())
     .execute(pool)
     .await
     .expect("Failed to create mitra");
@@ -534,8 +534,8 @@ async fn test_get_mitra_pools_empty() {
     let wallet = format!("0xMitra_{}", user_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4)"#
     )
     .bind(user_id)
     .bind(&email)
@@ -581,8 +581,8 @@ async fn test_get_mitra_pools_multiple() {
     let wallet = format!("0xMitra_{}", mitra_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4)"#
     )
     .bind(mitra_id)
     .bind(&email)
@@ -865,8 +865,8 @@ async fn test_get_pool_by_invoice_not_found() {
     let wallet = format!("0xMitra_{}", mitra_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4)"#
     )
     .bind(mitra_id)
     .bind(&email)
@@ -920,8 +920,8 @@ async fn test_get_pool_by_invoice_forbidden_wrong_owner() {
     let wallet2 = format!("0xMitra_{}", mitra2_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4)"#
     )
     .bind(mitra2_id)
     .bind(&email2)
@@ -992,8 +992,8 @@ async fn test_get_pool_by_invoice_no_pool_exists() {
     let wallet = format!("0xMitra_{}", mitra_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4)"#
     )
     .bind(mitra_id)
     .bind(&email)
@@ -1136,8 +1136,8 @@ async fn test_get_mitra_dashboard_empty() {
     let wallet = format!("0xMitra_{}", mitra_id.simple());
 
     sqlx::query(
-        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address, balance_idrx)
-           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4, 0)"#
+        r#"INSERT INTO users (id, email, username, password_hash, role, member_status, is_verified, is_active, wallet_address)
+           VALUES ($1, $2, $3, 'hash', 'mitra', 'member_mitra', true, true, $4)"#
     )
     .bind(mitra_id)
     .bind(&email)
