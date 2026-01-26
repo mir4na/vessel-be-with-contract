@@ -12,6 +12,10 @@ async fn test_send_and_verify_otp_success() {
         .await
         .expect("Failed to connect to DB");
 
+    crate::database::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
     let email_service = Arc::new(crate::services::EmailService::new(Arc::new(config.clone())));
     let otp_repo = Arc::new(crate::repository::OtpRepository::new(pool.clone()));
     let jwt_manager = Arc::new(crate::utils::JwtManager::new(
@@ -60,6 +64,10 @@ async fn test_verify_otp_invalid_code() {
     let pool = PgPool::connect(&config.database_url)
         .await
         .expect("Failed to connect to DB");
+
+    crate::database::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
 
     let email_service = Arc::new(crate::services::EmailService::new(Arc::new(config.clone())));
     let otp_repo = Arc::new(crate::repository::OtpRepository::new(pool.clone()));

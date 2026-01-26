@@ -24,6 +24,10 @@ pub async fn setup_funding_service(
     Arc<MitraService>,
     PgPool,
 ) {
+    crate::database::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
     let mut config = get_test_config();
     config.skip_blockchain_verification = true; // Enable test mode
     let config = Arc::new(config);
