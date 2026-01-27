@@ -6,7 +6,7 @@ use uuid::Uuid;
 use super::AppState;
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    ChangePasswordRequest, CompleteProfileRequest, UpdateProfileRequest, UpdateWalletRequest,
+    ChangePasswordRequest, CompleteProfileRequest, ConnectWalletRequest, UpdateProfileRequest,
 };
 use crate::utils::{hash_password, verify_password, ApiResponse, Claims};
 
@@ -195,17 +195,19 @@ pub async fn change_password(
 }
 
 /// PUT /api/v1/user/wallet
-pub async fn update_wallet(
+/// Connect wallet with signature verification (supports Base Smart Wallet / passkey via ERC-1271)
+/// Flow: 1) POST /auth/wallet/nonce → 2) Sign message with wallet → 3) PUT /user/wallet
+pub async fn connect_wallet(
     state: web::Data<AppState>,
     req: HttpRequest,
-    body: web::Json<UpdateWalletRequest>,
+    body: web::Json<ConnectWalletRequest>,
 ) -> AppResult<HttpResponse> {
     let user_id = get_user_id(&req)?;
     let user = state
-        .user_repo
-        .update_wallet(user_id, &body.wallet_address)
+        .auth_service
+        .connect_wallet(user_id, body.into_inner())
         .await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::success(user, "Wallet updated successfully")))
+    Ok(HttpResponse::Ok().json(ApiResponse::success(user, "Wallet connected successfully")))
 }
 
 /// GET /api/v1/admin/users

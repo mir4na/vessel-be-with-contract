@@ -1,4 +1,4 @@
-#![allow(dead_code)] // Repository methods available for future features
+#![allow(dead_code)]
 
 mod funding_repository;
 mod importer_payment_repository;

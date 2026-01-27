@@ -265,12 +265,15 @@ pub async fn get_pool_by_invoice(
 
 /// POST /api/v1/admin/pools/{id}/disburse
 pub async fn disburse(
-    _state: web::Data<AppState>,
-    _req: HttpRequest,
-    _path: web::Path<Uuid>,
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    path: web::Path<Uuid>,
 ) -> AppResult<HttpResponse> {
-    // Stub
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("Disbursement initiated")))
+    let pool_id = path.into_inner();
+    let _admin_id = get_user_id(&req)?; // Ensure authenticated (Role check usually in middleware)
+
+    let pool = state.funding_service.disburse_pool(pool_id).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::success(pool, "Disbursement initiated successfully")))
 }
 
 /// POST /api/v1/admin/pools/{id}/close

@@ -240,20 +240,7 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
             updated_at TIMESTAMP DEFAULT NOW()
         );"#,
         // Virtual accounts table
-        r#"CREATE TABLE IF NOT EXISTS virtual_accounts (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            pool_id UUID REFERENCES funding_pools(id) ON DELETE CASCADE,
-            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-            va_number VARCHAR(50) NOT NULL,
-            bank_code VARCHAR(20) NOT NULL,
-            bank_name VARCHAR(100) NOT NULL,
-            amount DECIMAL(20,2) NOT NULL,
-            status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'expired', 'cancelled')),
-            expires_at TIMESTAMP NOT NULL,
-            paid_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );"#,
+
         // Importer payments table
         r#"CREATE TABLE IF NOT EXISTS importer_payments (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -313,9 +300,7 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         r#"CREATE INDEX IF NOT EXISTS idx_risk_questionnaires_user ON risk_questionnaires(user_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_user_identities_nik ON user_identities(nik);"#,
-        r#"CREATE INDEX IF NOT EXISTS idx_virtual_accounts_pool ON virtual_accounts(pool_id);"#,
-        r#"CREATE INDEX IF NOT EXISTS idx_virtual_accounts_user ON virtual_accounts(user_id);"#,
-        r#"CREATE INDEX IF NOT EXISTS idx_virtual_accounts_status ON virtual_accounts(status);"#,
+
         r#"CREATE INDEX IF NOT EXISTS idx_importer_payments_invoice ON importer_payments(invoice_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_importer_payments_pool ON importer_payments(pool_id);"#,
         r#"CREATE INDEX IF NOT EXISTS idx_importer_payments_status ON importer_payments(payment_status);"#,
@@ -407,8 +392,6 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         r#"ALTER TABLE users DROP COLUMN IF EXISTS balance_idrx;"#,
         r#"DROP TABLE IF EXISTS user_identities;"#,
         r#"DROP TABLE IF EXISTS balance_transactions;"#,
-        r#"DROP TABLE IF EXISTS virtual_accounts;"#,
-        r#"DROP TABLE IF EXISTS bank_accounts;"#,
     ];
 
     for (i, migration) in migrations.iter().enumerate() {

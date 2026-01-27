@@ -52,7 +52,7 @@ pub async fn login(
 }
 
 /// POST /api/v1/auth/wallet/nonce
-/// Get nonce for wallet signature (for investors)
+/// Get nonce for wallet signature (for investors and mitra - supports Base Smart Wallet / passkey)
 pub async fn get_wallet_nonce(
     state: web::Data<AppState>,
     body: web::Json<GetNonceRequest>,
@@ -65,7 +65,7 @@ pub async fn get_wallet_nonce(
 }
 
 /// POST /api/v1/auth/wallet/login
-/// Wallet-based login for investors only
+/// Wallet-based login for investors and mitra (supports Base Smart Wallet / passkey via ERC-1271)
 pub async fn wallet_login(
     state: web::Data<AppState>,
     body: web::Json<WalletLoginRequest>,

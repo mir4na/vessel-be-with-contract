@@ -54,6 +54,14 @@ abigen!(
     ]"#
 );
 
+// EIP-1271 Interface
+abigen!(
+    IERC1271,
+    r#"[
+        function isValidSignature(bytes32 _hash, bytes memory _signature) public view returns (bytes4)
+    ]"#
+);
+
 /// Represents a verified on-chain IDRX transfer
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct VerifiedTransfer {
@@ -163,6 +171,41 @@ impl BlockchainService {
         U256::from(amount_u128)
     }
 
+    /// Verify signature using ERC-1271 (for Smart Contract Wallets)
+    pub async fn verify_signature_erc1271(
+        &self,
+        wallet_address: &str,
+        message_hash: [u8; 32],
+        signature: Vec<u8>,
+    ) -> AppResult<bool> {
+        let addr: Address = wallet_address
+            .parse()
+            .map_err(|_| AppError::ValidationError("Invalid wallet address".to_string()))?;
+
+        // 0x1626ba7e is the bytes4 magic value for isValidSignature
+        let magic_value = [0x16, 0x26, 0xba, 0x7e];
+
+        let contract = IERC1271::new(addr, Arc::new(self.provider.clone()));
+        
+        let result = contract
+            .is_valid_signature(message_hash, signature.into())
+            .call()
+            .await;
+
+        match result {
+            Ok(val) => Ok(val == magic_value),
+            Err(e) => {
+                tracing::warn!("ERC-1271 verification failed: {}", e);
+                Ok(false) // Not a valid signature or contract doesn't support 1271
+            }
+        }
+    }
+
+    /// Prepare message hash for verification (matches EIP-191 Personal Sign)
+    pub fn hash_message(&self, message: &str) -> [u8; 32] {
+        ethers::utils::hash_message(message).into()
+    }
+
     /// Verify an IDRX transfer transaction
     /// Returns details if the transfer is valid and matches expected parameters
     pub async fn verify_idrx_transfer(
@@ -192,12 +235,14 @@ impl BlockchainService {
             .parse()
             .map_err(|_| AppError::ValidationError("Invalid recipient address".to_string()))?;
 
-        // Get transaction receipt
+        // Get the transaction receipt
         let receipt = self
             .provider
             .get_transaction_receipt(hash)
             .await
-            .map_err(|e| AppError::BlockchainError(format!("Failed to get receipt: {}", e)))?
+            .map_err(|e| {
+                AppError::BlockchainError(format!("Failed to get tx receipt: {}", e))
+            })?
             .ok_or_else(|| {
                 AppError::BlockchainError("Transaction not found or not confirmed".to_string())
             })?;

@@ -8,8 +8,8 @@ async function main() {
     // For safety, I'll read from process.env if dotenv is set up, or hardcode/pass them.
     // Hardhat config usually loads dotenv.
 
-    const INVOICE_NFT_ADDRESS = "0xa44fF300eC504991Ac6Cd88cd29E2CCDC88B6CD3";
-    const INVOICE_POOL_ADDRESS = "0xf00d59De50c33bcd5f88Be5Ce504D4788E42892E";
+    const INVOICE_NFT_ADDRESS = "0x0e4b822f012cDab1e053BA4a11F50A0A137BE445";
+    const INVOICE_POOL_ADDRESS = "0x86292A6B7f86445ED93c5C2f89279315Cab7c179";
 
     console.log("InvoiceNFT:", INVOICE_NFT_ADDRESS);
     console.log("InvoicePool:", INVOICE_POOL_ADDRESS);

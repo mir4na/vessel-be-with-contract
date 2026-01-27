@@ -186,6 +186,17 @@ pub struct InvestorWalletRegisterRequest {
     pub cooperative_agreement: bool,
 }
 
+// Connect wallet with signature verification (for any authenticated user - investor or mitra)
+// Supports Base Smart Wallet (passkey) via ERC-1271
+#[derive(Debug, Deserialize, Validate)]
+pub struct ConnectWalletRequest {
+    #[validate(length(min = 42, max = 42, message = "Invalid wallet address"))]
+    pub wallet_address: String,
+    pub signature: String,
+    pub message: String,
+    pub nonce: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub user: User,

@@ -604,6 +604,63 @@ impl FundingService {
         })
     }
 
+    pub async fn disburse_pool(&self, pool_id: Uuid) -> AppResult<FundingPool> {
+        let pool = self
+            .funding_repo
+            .find_by_id(pool_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
+
+        if pool.status != "filled" {
+            return Err(AppError::BadRequest(
+                "Pool must be filled to disburse".to_string(),
+            ));
+        }
+
+        let invoice = self
+            .invoice_repo
+            .find_by_id(pool.invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
+
+        let exporter_wallet = invoice.exporter_wallet_address.ok_or_else(|| {
+            AppError::ValidationError("Exporter wallet address not set".to_string())
+        })?;
+
+        // Release funds via Escrow (On-chain transfer)
+        let _tx_hash = self
+            .escrow_service
+            .release_to_exporter(
+                pool.id,
+                invoice.exporter_id,
+                &exporter_wallet,
+                pool.funded_amount,
+            )
+            .await?;
+
+        // Update status to disbursed
+        let pool = self.funding_repo.set_disbursed(pool.id).await?;
+        self.invoice_repo
+            .update_status(pool.invoice_id, "disbursed")
+            .await?;
+
+        // Notify exporter
+        if let Some(exporter) = self.user_repo.find_by_id(invoice.exporter_id).await? {
+            if let Some(email) = &exporter.email {
+                let _ = self
+                    .email_service
+                    .send_disbursement_notification(
+                        email,
+                        &invoice.invoice_number,
+                        pool.funded_amount.to_f64().unwrap_or(0.0),
+                    )
+                    .await;
+            }
+        }
+
+        Ok(pool)
+    }
+
     fn build_pool_response(
         &self,
         pool: FundingPool,

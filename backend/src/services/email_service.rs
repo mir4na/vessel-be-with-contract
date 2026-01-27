@@ -141,4 +141,30 @@ impl EmailService {
 
         self.send_email(to, subject, &body).await
     }
+
+    pub async fn send_disbursement_notification(
+        &self,
+        to: &str,
+        invoice_number: &str,
+        amount: f64,
+    ) -> AppResult<()> {
+        let subject = "VESSEL - Funds Disbursed!";
+        let body = format!(
+            r#"
+            <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Funds Disbursed</h2>
+                <p>Funds for invoice <strong>{}</strong> have been disbursed to your wallet.</p>
+                <p>Disbursed Amount: <strong>Rp {:.2}</strong></p>
+                <p>Check your wallet for the IDRX transfer.</p>
+                <hr>
+                <p style="color: #666; font-size: 12px;">VESSEL - Invoice Factoring Platform on Base Network</p>
+            </body>
+            </html>
+            "#,
+            invoice_number, amount
+        );
+
+        self.send_email(to, subject, &body).await
+    }
 }

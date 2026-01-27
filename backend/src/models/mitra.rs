@@ -27,6 +27,7 @@ impl std::fmt::Display for MitraApplicationStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct MitraApplication {
+    
     pub id: Uuid,
     pub user_id: Uuid,
     pub company_name: String,
@@ -155,5 +156,5 @@ pub struct MitraApplicationDetailResponse {
 pub struct MitraUserInfo {
     pub id: Uuid,
     pub email: Option<String>,
-    pub username: String,
+    pub username: Option<String>,
 }

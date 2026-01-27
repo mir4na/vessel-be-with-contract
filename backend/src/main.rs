@@ -104,6 +104,7 @@ async fn main() -> std::io::Result<()> {
         jwt_manager.clone(),
         otp_service.clone(),
         config.clone(),
+        blockchain_service.clone(),
     ));
     let mitra_service = Arc::new(services::MitraService::new(
         mitra_repo.clone(),
@@ -225,7 +226,7 @@ async fn main() -> std::io::Result<()> {
                             .route("/refresh", web::post().to(handlers::auth::refresh_token))
                             // Google OAuth (for mitra/admin - skips OTP)
                             .route("/google", web::post().to(handlers::auth::google_auth))
-                            // Wallet auth (for investors)
+                            // Wallet auth (for investors & mitra - supports Base Smart Wallet / passkey)
                             .route(
                                 "/wallet/nonce",
                                 web::post().to(handlers::auth::get_wallet_nonce),
@@ -279,7 +280,7 @@ async fn main() -> std::io::Result<()> {
                                         "/profile/password",
                                         web::put().to(handlers::user::change_password),
                                     )
-                                    .route("/wallet", web::put().to(handlers::user::update_wallet))
+                                    .route("/wallet", web::put().to(handlers::user::connect_wallet))
                                     // Mitra application routes
                                     .service(
                                         web::scope("/mitra")

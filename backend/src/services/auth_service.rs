@@ -1,5 +1,5 @@
-use ethers::types::{Address, Signature};
-use ethers::utils::hash_message;
+use ethers::types::{Address, H256, Signature};
+use ethers::utils::hex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -8,13 +8,13 @@ use uuid::Uuid;
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    GoogleAuthRequest, GoogleAuthResponse, InvestorWalletRegisterRequest, LoginRequest,
-    LoginResponse, RegisterRequest, User, WalletLoginRequest, WalletNonceResponse,
+    ConnectWalletRequest, GoogleAuthRequest, GoogleAuthResponse, InvestorWalletRegisterRequest,
+    LoginRequest, LoginResponse, RegisterRequest, User, WalletLoginRequest, WalletNonceResponse,
 };
 use crate::repository::{MitraRepository, UserRepository};
 use crate::utils::{generate_random_token, hash_password, verify_password, JwtManager};
 
-use super::OtpService;
+use super::{BlockchainService, OtpService};
 
 pub struct AuthService {
     user_repo: Arc<UserRepository>,
@@ -22,8 +22,8 @@ pub struct AuthService {
     jwt_manager: Arc<JwtManager>,
     otp_service: Arc<OtpService>,
     config: Arc<Config>,
-    // Store nonces for wallet authentication (in production, use Redis)
     wallet_nonces: Arc<RwLock<HashMap<String, String>>>,
+    blockchain_service: Arc<BlockchainService>,
 }
 
 impl AuthService {
@@ -33,6 +33,7 @@ impl AuthService {
         jwt_manager: Arc<JwtManager>,
         otp_service: Arc<OtpService>,
         config: Arc<Config>,
+        blockchain_service: Arc<BlockchainService>,
     ) -> Self {
         Self {
             user_repo,
@@ -41,6 +42,7 @@ impl AuthService {
             otp_service,
             config,
             wallet_nonces: Arc::new(RwLock::new(HashMap::new())),
+            blockchain_service,
         }
     }
 
@@ -62,35 +64,47 @@ impl AuthService {
         Ok(WalletNonceResponse { nonce, message })
     }
 
-    /// Verify wallet signature
-    fn verify_wallet_signature(
+    /// Verify wallet signature (supports EOA and ERC-1271 Smart Wallets)
+    async fn verify_wallet_signature(
         &self,
         wallet_address: &str,
-        signature: &str,
+        signature_str: &str,
         message: &str,
     ) -> AppResult<bool> {
-        // Parse wallet address
-        let address: Address = wallet_address
+        let wallet_addr: Address = wallet_address
             .parse()
             .map_err(|_| AppError::ValidationError("Invalid wallet address".to_string()))?;
 
-        // Parse signature
-        let sig: Signature = signature
-            .parse()
-            .map_err(|_| AppError::ValidationError("Invalid signature format".to_string()))?;
+        // 1. Prepare message hash (EIP-191)
+        // We use BlockchainService helper to ensure consistency
+        let message_hash = self.blockchain_service.hash_message(message);
 
-        // Hash the message (EIP-191 personal sign)
-        let message_hash = hash_message(message);
+        // 2. Decode signature
+        // Handle 0x prefix if present
+        let sig_clean = signature_str.strip_prefix("0x").unwrap_or(signature_str);
+        let signature_bytes = hex::decode(sig_clean)
+            .map_err(|_| AppError::ValidationError("Invalid signature hex".to_string()))?;
 
-        // Recover the signer address
-        let recovered = sig
-            .recover(message_hash)
-            .map_err(|_| AppError::ValidationError("Failed to recover signer".to_string()))?;
+        // 3. Attempt EOA Verification (Standard ECDSA)
+        // Only if signature length is 65 bytes
+        if signature_bytes.len() == 65 {
+            if let Ok(sig) = signature_str.parse::<Signature>() {
+                if let Ok(recovered) = sig.recover(H256::from(message_hash)) {
+                    if recovered == wallet_addr {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
 
-        Ok(recovered == address)
+        // 4. Fallback: ERC-1271 Verification (Smart Contract Wallet)
+        // If EOA check failed or format was different, check on-chain
+        self.blockchain_service
+            .verify_signature_erc1271(wallet_address, message_hash, signature_bytes)
+            .await
     }
 
-    /// Wallet login for investors
+    /// Wallet login for investors and mitra (supports Base Smart Wallet / passkey via ERC-1271)
     pub async fn wallet_login(&self, req: WalletLoginRequest) -> AppResult<LoginResponse> {
         let wallet = req.wallet_address.to_lowercase();
 
@@ -107,7 +121,7 @@ impl AuthService {
         }
 
         // Verify signature
-        if !self.verify_wallet_signature(&wallet, &req.signature, &req.message)? {
+        if !self.verify_wallet_signature(&wallet, &req.signature, &req.message).await? {
             return Err(AppError::InvalidCredentials);
         }
 
@@ -118,16 +132,9 @@ impl AuthService {
         }
 
         // Find or create user by wallet
+        // Supports both investor and mitra with connected wallets (Base Smart Wallet / passkey)
         let user = match self.user_repo.find_by_wallet(&wallet).await? {
-            Some(user) => {
-                // Existing user - verify they are an investor
-                if user.role != "investor" {
-                    return Err(AppError::Forbidden(
-                        "Wallet login is only available for investors. Please use email/password login.".to_string()
-                    ));
-                }
-                user
-            }
+            Some(user) => user,
             None => {
                 // Auto-create investor account with wallet
                 self.user_repo.create_investor_with_wallet(&wallet).await?
@@ -185,7 +192,7 @@ impl AuthService {
         }
 
         // Verify signature
-        if !self.verify_wallet_signature(&wallet, &req.signature, &req.message)? {
+        if !self.verify_wallet_signature(&wallet, &req.signature, &req.message).await? {
             return Err(AppError::InvalidCredentials);
         }
 
@@ -221,6 +228,65 @@ impl AuthService {
             refresh_token,
             expires_in: self.jwt_manager.get_expiry_hours() * 3600,
         })
+    }
+
+    /// Connect wallet to existing account with signature verification
+    /// Supports Base Smart Wallet (passkey) via ERC-1271
+    /// Works for both investor and mitra accounts
+    pub async fn connect_wallet(
+        &self,
+        user_id: Uuid,
+        req: ConnectWalletRequest,
+    ) -> AppResult<User> {
+        let wallet = req.wallet_address.to_lowercase();
+
+        // Verify nonce
+        {
+            let nonces = self.wallet_nonces.read().await;
+            let stored_nonce = nonces
+                .get(&wallet)
+                .ok_or_else(|| AppError::ValidationError("Invalid or expired nonce".to_string()))?;
+
+            if stored_nonce != &req.nonce {
+                return Err(AppError::ValidationError("Nonce mismatch".to_string()));
+            }
+        }
+
+        // Verify signature (supports both EOA and ERC-1271 / Base Smart Wallet / passkey)
+        if !self
+            .verify_wallet_signature(&wallet, &req.signature, &req.message)
+            .await?
+        {
+            return Err(AppError::InvalidCredentials);
+        }
+
+        // Clear used nonce
+        {
+            let mut nonces = self.wallet_nonces.write().await;
+            nonces.remove(&wallet);
+        }
+
+        // Check if wallet is already used by another account
+        if let Some(existing) = self.user_repo.find_by_wallet(&wallet).await? {
+            if existing.id != user_id {
+                return Err(AppError::Conflict(
+                    "Wallet already connected to another account".to_string(),
+                ));
+            }
+            // Wallet already connected to this user — return as-is
+            return Ok(existing);
+        }
+
+        // Update wallet address on user record
+        let user = self.user_repo.update_wallet(user_id, &wallet).await?;
+
+        tracing::info!(
+            "Wallet connected: user={}, wallet={}",
+            user_id,
+            wallet
+        );
+
+        Ok(user)
     }
 
     /// Traditional registration (for mitra only - investors use wallet login)
