@@ -143,3 +143,17 @@ pub struct TrancheBreakdown {
     pub total: f64,
     pub investor_count: i32,
 }
+
+#[derive(Debug, Serialize)]
+pub struct MitraApplicationDetailResponse {
+    #[serde(flatten)]
+    pub application: MitraApplication,
+    pub user: Option<MitraUserInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MitraUserInfo {
+    pub id: Uuid,
+    pub email: Option<String>,
+    pub username: String,
+}

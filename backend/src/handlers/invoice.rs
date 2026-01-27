@@ -420,6 +420,30 @@ pub async fn reject(
     Ok(HttpResponse::Ok().json(ApiResponse::success(invoice, "Invoice rejected")))
 }
 
+/// GET /api/v1/admin/users/{id}/invoices
+pub async fn get_exporter_invoices(
+    state: web::Data<AppState>,
+    path: web::Path<Uuid>,
+    query: web::Query<InvoiceListQuery>,
+) -> AppResult<HttpResponse> {
+    let user_id = path.into_inner();
+    let (invoices, total) = state
+        .invoice_service
+        .list_by_exporter(
+            user_id,
+            query.page.unwrap_or(1),
+            query.per_page.unwrap_or(10),
+            query.status.clone(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::paginated(
+        invoices,
+        total,
+        query.page.unwrap_or(1),
+        query.per_page.unwrap_or(10),
+    )))
+}
+
 #[derive(serde::Deserialize)]
 #[allow(dead_code)] // Fields used for query deserialization
 pub struct InvoiceListQuery {

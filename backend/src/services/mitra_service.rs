@@ -3,7 +3,8 @@ use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    MitraApplication, MitraApplyRequest, MitraDocumentsStatus, MitraStatusResponse,
+    MitraApplication, MitraApplicationDetailResponse, MitraApplyRequest, MitraDocumentsStatus,
+    MitraStatusResponse, MitraUserInfo,
 };
 use crate::repository::{MitraRepository, UserRepository};
 
@@ -153,15 +154,30 @@ impl MitraService {
         self.mitra_repo.find_all(page, per_page).await
     }
 
-    pub async fn get_application(&self, id: Uuid) -> AppResult<MitraApplication> {
-        self.mitra_repo
+    pub async fn get_application(&self, id: Uuid) -> AppResult<MitraApplicationDetailResponse> {
+        let application = self
+            .mitra_repo
             .find_by_id(id)
             .await?
-            .ok_or_else(|| AppError::NotFound("Application not found".to_string()))
+            .ok_or_else(|| AppError::NotFound("Application not found".to_string()))?;
+
+        let user = self.user_repo.find_by_id(application.user_id).await?;
+
+        let user_info = user.map(|u| MitraUserInfo {
+            id: u.id,
+            email: u.email,
+            username: u.username,
+        });
+
+        Ok(MitraApplicationDetailResponse {
+            application,
+            user: user_info,
+        })
     }
 
     pub async fn approve(&self, id: Uuid, admin_id: Uuid) -> AppResult<MitraApplication> {
-        let application = self.get_application(id).await?;
+        let detail = self.get_application(id).await?;
+        let application = detail.application;
 
         if application.status != "pending" {
             return Err(AppError::BadRequest(
@@ -202,7 +218,8 @@ impl MitraService {
         admin_id: Uuid,
         reason: &str,
     ) -> AppResult<MitraApplication> {
-        let application = self.get_application(id).await?;
+        let detail = self.get_application(id).await?;
+        let application = detail.application;
 
         if application.status != "pending" {
             return Err(AppError::BadRequest(

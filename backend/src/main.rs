@@ -475,6 +475,14 @@ async fn main() -> std::io::Result<()> {
                                         web::post().to(handlers::invoice::reject),
                                     )
                                     .route(
+                                        "/users/{id}/invoices",
+                                        web::get().to(handlers::invoice::get_exporter_invoices),
+                                    )
+                                    .route(
+                                        "/users/{id}/pools",
+                                        web::get().to(handlers::funding::get_exporter_pools),
+                                    )
+                                    .route(
                                         "/pools/{id}/disburse",
                                         web::post().to(handlers::funding::disburse),
                                     )

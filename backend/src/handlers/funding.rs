@@ -284,6 +284,24 @@ pub async fn close_pool_and_notify(
     Ok(HttpResponse::Ok().json(ApiResponse::success(pool, "Pool closed successfully")))
 }
 
+/// GET /api/v1/admin/users/{id}/pools
+pub async fn get_exporter_pools(
+    state: web::Data<AppState>,
+    path: web::Path<Uuid>,
+    query: web::Query<PaginationQuery>,
+) -> AppResult<HttpResponse> {
+    let user_id = path.into_inner();
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(10);
+
+    let (pools, total) = state
+        .funding_service
+        .get_mitra_pools(user_id, page, per_page)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::paginated(pools, total, page, per_page)))
+}
+
 /// POST /api/v1/admin/invoices/{id}/repay (Used by Mitra/Admin)
 pub async fn process_repayment(
     state: web::Data<AppState>,
