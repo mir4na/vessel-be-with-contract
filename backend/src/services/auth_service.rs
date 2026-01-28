@@ -89,16 +89,35 @@ impl AuthService {
         // Only if signature length is 65 bytes
         if signature_bytes.len() == 65 {
             if let Ok(sig) = signature_str.parse::<Signature>() {
-                if let Ok(recovered) = sig.recover(H256::from(message_hash)) {
-                    if recovered == wallet_addr {
-                        return Ok(true);
+                match sig.recover(H256::from(message_hash)) {
+                    Ok(recovered) => {
+                        if recovered == wallet_addr {
+                            tracing::info!("EOA signature verified for {}", wallet_address);
+                            return Ok(true);
+                        } else {
+                            tracing::warn!(
+                                "EOA signature recovery mismatch. Wallet: {}, Recovered: {}",
+                                wallet_addr,
+                                recovered
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("EOA signature recovery failed: {}", e);
                     }
                 }
+            } else {
+                tracing::warn!("Failed to parse EOA signature");
             }
+        } else {
+            tracing::info!(
+                "Signature length {} != 65, skipping EOA check (likely Smart Wallet)",
+                signature_bytes.len()
+            );
         }
 
         // 4. Fallback: ERC-1271 Verification (Smart Contract Wallet)
-        // If EOA check failed or format was different, check on-chain
+        tracing::info!("Attempting ERC-1271 verification for {}", wallet_address);
         self.blockchain_service
             .verify_signature_erc1271(wallet_address, message_hash, signature_bytes)
             .await
