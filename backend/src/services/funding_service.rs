@@ -81,7 +81,8 @@ impl FundingService {
         }
 
         // Calculate tranche amounts
-        let target_amount = invoice.amount;
+        // The pool target should be the advance amount (e.g. 80% of invoice total), not the full invoice value
+        let target_amount = invoice.advance_amount.unwrap_or(invoice.amount);
         let priority_ratio = invoice.priority_ratio.to_f64().unwrap_or(80.0) / 100.0;
         let priority_target = target_amount * Decimal::from_f64(priority_ratio).unwrap();
         let catalyst_target = target_amount - priority_target;
@@ -382,8 +383,7 @@ impl FundingService {
                 amount,
                 &req.tx_hash,
                 verified_transfer.block_number as i64,
-                Some(req.pool_id),
-                Some("pool"),
+                Some(pool.invoice_id),
                 Some(&format!("On-chain IDRX investment in pool {}", req.pool_id)),
                 &verified_transfer.explorer_url,
             )

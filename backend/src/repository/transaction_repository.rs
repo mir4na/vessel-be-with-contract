@@ -216,8 +216,7 @@ impl TransactionRepository {
         amount: Decimal,
         tx_hash: &str,
         block_number: i64,
-        reference_id: Option<Uuid>,
-        reference_type: Option<&str>,
+        invoice_id: Option<Uuid>,
         description: Option<&str>,
         explorer_url: &str,
     ) -> AppResult<Transaction> {
@@ -239,7 +238,7 @@ impl TransactionRepository {
         .bind(block_number)
         .bind(description)
         .bind(explorer_url)
-        .bind(if reference_type == Some("pool") { reference_id } else { None })
+        .bind(invoice_id)
         .fetch_one(&self.pool)
         .await?;
 
