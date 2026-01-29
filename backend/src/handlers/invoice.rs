@@ -399,8 +399,11 @@ pub async fn approve(
         .update_status(invoice.id, "tokenized")
         .await?;
 
-    // 3. Create Funding Pool (DB)
-    let _pool = state.funding_service.create_pool(invoice.id).await?;
+    // 3. Verify Shipment on-chain (Required prerequisite for creating a pool)
+    let _verify_tx = state
+        .blockchain_service
+        .verify_shipment_on_chain(token_id)
+        .await?;
 
     // 4. Create Pool on-chain
     let _pool_tx = state
@@ -408,15 +411,12 @@ pub async fn approve(
         .create_pool_on_chain(token_id)
         .await?;
 
-    // Update status to Funding (since pool is open)
-    let invoice = state
-        .invoice_repo
-        .update_status(invoice.id, "funding")
-        .await?;
+    // 5. Create Funding Pool (DB) - This also updates invoice status to "funding"
+    let _pool = state.funding_service.create_pool(invoice.id).await?;
 
     Ok(HttpResponse::Ok().json(ApiResponse::success(
         invoice,
-        "Invoice approved, tokenized, and pool created",
+        "Invoice approved, tokenized, and funding pool created on-chain",
     )))
 }
 

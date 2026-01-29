@@ -221,13 +221,14 @@ impl TransactionRepository {
         description: Option<&str>,
         explorer_url: &str,
     ) -> AppResult<Transaction> {
+        // Create the transaction record
         let tx = sqlx::query_as::<_, Transaction>(
             r#"
             INSERT INTO transactions (
                 user_id, type, amount, currency, tx_hash, block_number,
-                status, notes, explorer_url
+                status, notes, explorer_url, invoice_id
             )
-            VALUES ($1, $2, $3, 'IDRX', $4, $5, 'confirmed', $6, $7)
+            VALUES ($1, $2, $3, 'IDRX', $4, $5, 'confirmed', $6, $7, $8)
             RETURNING *
             "#,
         )
@@ -238,24 +239,9 @@ impl TransactionRepository {
         .bind(block_number)
         .bind(description)
         .bind(explorer_url)
+        .bind(if reference_type == Some("pool") { reference_id } else { None })
         .fetch_one(&self.pool)
         .await?;
-
-        // Also record in balance_transactions for audit trail if there's a reference
-        if reference_id.is_some() {
-            let _ = self
-                .create_balance_transaction(
-                    user_id,
-                    tx_type,
-                    amount,
-                    Decimal::ZERO, // On-chain doesn't use internal balance
-                    Decimal::ZERO,
-                    reference_id,
-                    reference_type,
-                    description,
-                )
-                .await;
-        }
 
         Ok(tx)
     }
@@ -293,15 +279,20 @@ impl TransactionRepository {
         &self,
         pool_id: Uuid,
     ) -> AppResult<Vec<Transaction>> {
+        // First find the invoice associated with the pool
+        let invoice_id: (Uuid,) = sqlx::query_as("SELECT invoice_id FROM funding_pools WHERE id = $1")
+            .bind(pool_id)
+            .fetch_one(&self.pool)
+            .await?;
+
         let txs = sqlx::query_as::<_, Transaction>(
             r#"
-            SELECT t.* FROM transactions t
-            JOIN balance_transactions bt ON t.tx_hash IS NOT NULL
-            WHERE bt.reference_id = $1 AND bt.reference_type = 'pool'
-            ORDER BY t.created_at DESC
+            SELECT * FROM transactions
+            WHERE invoice_id = $1 AND tx_hash IS NOT NULL
+            ORDER BY created_at DESC
             "#,
         )
-        .bind(pool_id)
+        .bind(invoice_id.0)
         .fetch_all(&self.pool)
         .await?;
 

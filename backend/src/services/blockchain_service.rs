@@ -40,6 +40,7 @@ abigen!(
     r#"[
         function mintInvoice(address to, string memory invoiceNumber, uint256 amount, uint256 advanceAmount, uint256 interestRate, uint256 issueDate, uint256 dueDate, string memory buyerCountry, string memory documentHash, string memory uri) external returns (uint256)
         function getTokenIdByInvoiceNumber(string memory invoiceNumber) external view returns (uint256)
+        function verifyShipment(uint256 tokenId) external
     ]"#
 );
 
@@ -944,6 +945,44 @@ impl BlockchainService {
             })?
             .ok_or_else(|| {
                 AppError::BlockchainError("Record repayment transaction failed".to_string())
+            })?;
+
+        Ok(format!("{:?}", receipt.transaction_hash))
+    }
+
+    pub async fn verify_shipment_on_chain(&self, token_id: i64) -> AppResult<String> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain shipment verification (Test Mode)");
+            return Ok("0xTestVerifyShipmentHash".to_string());
+        }
+
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
+
+        let contract_addr: Address =
+            self.config.invoice_nft_contract_addr.parse().map_err(|_| {
+                AppError::BlockchainError("Invalid InvoiceNFT contract address".to_string())
+            })?;
+
+        let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
+        let contract = InvoiceNFT::new(contract_addr, Arc::new(client));
+
+        tracing::info!("Verifying shipment on-chain for token {}", token_id);
+
+        let tx = contract.verify_shipment(U256::from(token_id));
+
+        let pending_tx = tx.send().await.map_err(|e| {
+            AppError::BlockchainError(format!("Failed to send verifyShipment tx: {}", e))
+        })?;
+
+        let receipt = pending_tx
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!("Failed to wait for verifyShipment receipt: {}", e))
+            })?
+            .ok_or_else(|| {
+                AppError::BlockchainError("verifyShipment transaction failed".to_string())
             })?;
 
         Ok(format!("{:?}", receipt.transaction_hash))

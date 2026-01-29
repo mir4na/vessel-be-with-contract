@@ -2,7 +2,7 @@ use actix_web::{HttpResponse, ResponseError};
 use serde_json::json;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)] // Some variants reserved for future business logic
 pub enum AppError {
     // Authentication errors

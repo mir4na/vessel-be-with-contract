@@ -256,30 +256,41 @@ impl FundingService {
             (available, pool.priority_interest_rate)
         };
 
-        // Check 10-90% Limits
-        let min_limit = pool.target_amount * Decimal::from_f64(0.1).unwrap();
-        let max_limit = pool.target_amount * Decimal::from_f64(0.9).unwrap();
-        let pool_remaining = pool.target_amount - pool.funded_amount;
+        // Check 10-90% Limits based on TRANCHE target
+        let tranche_target = if is_catalyst {
+            pool.catalyst_target
+        } else {
+            pool.priority_target
+        };
 
-        if pool_remaining >= min_limit {
+        let min_limit = tranche_target * Decimal::from_f64(0.1).unwrap();
+        let max_limit = tranche_target * Decimal::from_f64(0.9).unwrap();
+        
+        let tranche_remaining = if is_catalyst {
+            pool.catalyst_target - pool.catalyst_funded
+        } else {
+            pool.priority_target - pool.priority_funded
+        };
+
+        if tranche_remaining >= min_limit {
             if amount < min_limit {
                 return Err(AppError::ValidationError(format!(
-                    "Minimum investment is 10% of target ({})",
-                    min_limit
+                    "Minimum investment is 10% of {} tranche target ({})",
+                    req.tranche, min_limit
                 )));
             }
             if amount > max_limit {
                 return Err(AppError::ValidationError(format!(
-                    "Maximum investment is 90% of target ({})",
-                    max_limit
+                    "Maximum investment is 90% of {} tranche target ({})",
+                    req.tranche, max_limit
                 )));
             }
         } else {
             // If remaining is small (last chunk), allowing exact fill or remaining
-            if amount > pool_remaining {
+            if amount > tranche_remaining {
                 return Err(AppError::ValidationError(format!(
-                    "Amount exceeds remaining pool capacity ({})",
-                    pool_remaining
+                    "Amount exceeds remaining {} tranche capacity ({})",
+                    req.tranche, tranche_remaining
                 )));
             }
         }
@@ -320,11 +331,35 @@ impl FundingService {
             AppError::InternalError("Token ID missing from NFT record".to_string())
         })?;
 
-        // Call contract
-        let _contract_tx = self
+        // Call contract - with self-healing for missing pools
+        let contract_result = self
             .blockchain_service
             .record_investment_on_chain(token_id, &verified_transfer.from, amount)
-            .await?;
+            .await;
+
+        let _contract_tx = match contract_result {
+            Ok(tx) => tx,
+            Err(e) if e.to_string().contains("Pool does not exist") => {
+                tracing::info!("On-chain pool missing for token {}, attempting self-healing...", token_id);
+                // Attempt to heal: verification then creation
+                // We ignore verification error if it already was verified
+                let _ = self.blockchain_service.verify_shipment_on_chain(token_id).await
+                    .map_err(|he| tracing::warn!("Self-healing verifyShipment failed (may already be verified): {}", he));
+                
+                self.blockchain_service.create_pool_on_chain(token_id).await
+                    .map_err(|he| {
+                        tracing::error!("Self-healing createPool failed: {}", he);
+                        e.clone() // Return original error if healing fails
+                    })?;
+                
+                tracing::info!("Self-healing successful, retrying investment record...");
+                // Retry recording investment
+                self.blockchain_service
+                    .record_investment_on_chain(token_id, &verified_transfer.from, amount)
+                    .await?
+            },
+            Err(e) => return Err(e),
+        };
 
         // Calculate expected return
         let invoice = self
