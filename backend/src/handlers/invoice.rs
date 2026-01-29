@@ -359,10 +359,25 @@ pub async fn approve(
         .await?;
 
     // Mint on chain
-    let (token_id, tx_hash, contract_addr) = state
+    let mint_result = state
         .blockchain_service
         .mint_invoice_nft(&invoice, &metadata_uri)
-        .await?;
+        .await;
+
+    let (token_id, tx_hash, contract_addr) = match mint_result {
+        Ok(res) => res,
+        Err(e) => {
+            // Revert status to pending_review if minting fails
+            tracing::error!("Minting failed, reverting invoice status: {}", e);
+            let _ = state
+                .invoice_repo
+                .update_status(invoice.id, "pending_review")
+                .await
+                .map_err(|re| tracing::error!("Failed to revert invoice status: {}", re));
+            
+            return Err(e);
+        }
+    };
 
     // Create NFT record in DB
     state
