@@ -252,6 +252,21 @@ async fn main() -> std::io::Result<()> {
                                 web::post().to(handlers::importer::pay),
                             ),
                     )
+                    // Public marketplace routes (no auth required for browsing)
+                    .service(
+                        web::scope("/marketplace")
+                            .route("", web::get().to(handlers::funding::get_marketplace))
+                            .route(
+                                "/{id}/detail",
+                                web::get().to(handlers::funding::get_pool_detail),
+                            ),
+                    )
+                    // Public pools routes (no auth required for browsing)
+                    .service(
+                        web::scope("/pools")
+                            .route("", web::get().to(handlers::funding::list_pools))
+                            .route("/{id}", web::get().to(handlers::funding::get_pool)),
+                    )
                     // Protected routes
                     .service(
                         web::scope("")
@@ -363,20 +378,9 @@ async fn main() -> std::io::Result<()> {
                                         web::post().to(handlers::funding::process_repayment),
                                     ),
                             )
-                            // Pool routes
-                            .service(
-                                web::scope("/pools")
-                                    .route("", web::get().to(handlers::funding::list_pools))
-                                    .route("/{id}", web::get().to(handlers::funding::get_pool)),
-                            )
-                            // Marketplace routes
+                            // Marketplace calculate (requires auth)
                             .service(
                                 web::scope("/marketplace")
-                                    .route("", web::get().to(handlers::funding::get_marketplace))
-                                    .route(
-                                        "/{id}/detail",
-                                        web::get().to(handlers::funding::get_pool_detail),
-                                    )
                                     .route(
                                         "/calculate",
                                         web::post().to(handlers::funding::calculate_investment),
