@@ -21,11 +21,12 @@ impl RiskQuestionnaireRepository {
         q2_answer: i32,
         q3_answer: i32,
         catalyst_unlocked: bool,
+        selected_tier: String,
     ) -> AppResult<RiskQuestionnaire> {
         let rq = sqlx::query_as::<_, RiskQuestionnaire>(
             r#"
-            INSERT INTO risk_questionnaires (user_id, q1_answer, q2_answer, q3_answer, catalyst_unlocked)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO risk_questionnaires (user_id, q1_answer, q2_answer, q3_answer, catalyst_unlocked, selected_tier)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
             "#,
         )
@@ -34,6 +35,7 @@ impl RiskQuestionnaireRepository {
         .bind(q2_answer)
         .bind(q3_answer)
         .bind(catalyst_unlocked)
+        .bind(selected_tier)
         .fetch_one(&self.pool)
         .await?;
 
@@ -58,11 +60,12 @@ impl RiskQuestionnaireRepository {
         q2_answer: i32,
         q3_answer: i32,
         catalyst_unlocked: bool,
+        selected_tier: String,
     ) -> AppResult<RiskQuestionnaire> {
         let rq = sqlx::query_as::<_, RiskQuestionnaire>(
             r#"
             UPDATE risk_questionnaires
-            SET q1_answer = $2, q2_answer = $3, q3_answer = $4, catalyst_unlocked = $5, completed_at = NOW()
+            SET q1_answer = $2, q2_answer = $3, q3_answer = $4, catalyst_unlocked = $5, selected_tier = $6, completed_at = NOW()
             WHERE user_id = $1
             RETURNING *
             "#,
@@ -72,6 +75,7 @@ impl RiskQuestionnaireRepository {
         .bind(q2_answer)
         .bind(q3_answer)
         .bind(catalyst_unlocked)
+        .bind(selected_tier)
         .fetch_one(&self.pool)
         .await?;
 

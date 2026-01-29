@@ -496,6 +496,10 @@ async fn main() -> std::io::Result<()> {
                                         web::post().to(handlers::funding::close_pool_and_notify),
                                     )
                                     .route(
+                                        "/pools/{id}/repay",
+                                        web::post().to(handlers::funding::process_pool_repayment),
+                                    )
+                                    .route(
                                         "/invoices/{id}/repay",
                                         web::post().to(handlers::funding::process_repayment),
                                     )

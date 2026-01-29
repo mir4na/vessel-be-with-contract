@@ -183,6 +183,17 @@ impl FundingRepository {
         Ok(pool)
     }
 
+    pub async fn set_repaid(&self, id: Uuid) -> AppResult<FundingPool> {
+        let pool = sqlx::query_as::<_, FundingPool>(
+            "UPDATE funding_pools SET status = 'repaid', closed_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *"
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(pool)
+    }
+
     // Investment methods
     pub async fn create_investment(
         &self,

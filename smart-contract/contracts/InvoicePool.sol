@@ -12,9 +12,9 @@ import "./InvoiceNFT.sol";
 /**
  * @title InvoicePool
  * @dev Manages funding pools for invoice NFTs on VESSEL platform
- * NOTE: This contract uses ABSTRACTED payments - amounts are recorded on-chain
- * but actual payments are handled off-chain. No ERC20 token transfers.
- * This provides blockchain transparency without requiring token integration.
+ * NOTE: This contract handles IDRX token transfers via SafeERC20.
+ * Investors must approve this contract to spend their IDRX tokens (if using direct investment)
+ * or funds are moved to this contract before recording investments.
  */
 contract InvoicePool is AccessControl, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
@@ -120,7 +120,11 @@ contract InvoicePool is AccessControl, ReentrancyGuard, Pausable {
         emit ExcessRepaymentRecorded(tokenId, recipient, amount);
     }
 
-    constructor(address _invoiceNFT, address _platformWallet, address _idrxToken) {
+    constructor(
+        address _invoiceNFT,
+        address _platformWallet,
+        address _idrxToken
+    ) {
         invoiceNFT = InvoiceNFT(_invoiceNFT);
         platformWallet = _platformWallet;
         idrxToken = IERC20(_idrxToken);
@@ -162,8 +166,10 @@ contract InvoicePool is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Record an investment (called by operator after off-chain payment is verified)
-     * NOTE: No actual token transfer - this only records the investment on-chain
+     * @dev Record an investment
+     * NOTE: Takes funds from contract balance (must be pre-funded)
+     * or could be modified to transferFrom investor if they have approved.
+     * Currently assumes contract holds the funds.
      * @param tokenId The pool token ID
      * @param investor The investor's wallet address
      * @param amount The investment amount (in smallest unit)
@@ -192,7 +198,7 @@ contract InvoicePool is AccessControl, ReentrancyGuard, Pausable {
             (amount * pool.interestRate * daysToMaturity) /
             (365 * 10000);
 
-        // Record investment on-chain (no token transfer)
+        // Record investment on-chain
         poolInvestments[tokenId].push(
             Investment({
                 investor: investor,
@@ -219,14 +225,18 @@ contract InvoicePool is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Record disbursement to exporter (called after off-chain payment is made)
-     * NOTE: No actual token transfer - this only records the disbursement on-chain
+     * @dev Record disbursement to exporter (transfers tokens)
+     * Can be called when Pool is Open (partial funding) or Filled.
      */
     function recordDisbursement(
         uint256 tokenId
     ) external onlyRole(OPERATOR_ROLE) nonReentrant {
         Pool storage pool = pools[tokenId];
-        require(pool.status == PoolStatus.Filled, "Pool not filled");
+        require(
+            pool.status == PoolStatus.Filled || pool.status == PoolStatus.Open,
+            "Pool not active (must be Open or Filled)"
+        );
+        require(pool.fundedAmount > 0, "No funds to disburse");
 
         pool.status = PoolStatus.Disbursed;
         pool.disbursedAt = block.timestamp;
@@ -309,7 +319,10 @@ contract InvoicePool is AccessControl, ReentrancyGuard, Pausable {
     function closePoolEarly(uint256 tokenId) external onlyRole(OPERATOR_ROLE) {
         Pool storage pool = pools[tokenId];
         require(pool.targetAmount > 0, "Pool does not exist");
-        require(pool.status == PoolStatus.Open || pool.status == PoolStatus.Filled, "Pool not active");
+        require(
+            pool.status == PoolStatus.Open || pool.status == PoolStatus.Filled,
+            "Pool not active"
+        );
 
         pool.status = PoolStatus.Closed;
         pool.closedAt = block.timestamp;

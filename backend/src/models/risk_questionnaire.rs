@@ -14,6 +14,7 @@ pub struct RiskQuestionnaire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub q3_answer: Option<i32>,
     pub catalyst_unlocked: bool,
+    pub selected_tier: String,
     pub completed_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
@@ -99,12 +100,14 @@ pub struct SubmitRiskQuestionnaireRequest {
     pub q1_answer: i32,
     pub q2_answer: i32,
     pub q3_answer: i32,
+    pub selected_tier: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct RiskQuestionnaireStatusResponse {
     pub completed: bool,
     pub catalyst_unlocked: bool,
+    pub selected_tier: Option<String>,
     pub completed_at: Option<DateTime<Utc>>,
     pub answers: Option<RiskQuestionnaireAnswers>,
 }

@@ -328,6 +328,10 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
         r#"ALTER TABLE mitra_applications ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE mitra_applications ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at AT TIME ZONE 'UTC';"#,
         r#"ALTER TABLE mitra_applications ALTER COLUMN reviewed_at TYPE TIMESTAMPTZ USING reviewed_at AT TIME ZONE 'UTC';"#,
+        // Fix risk_questionnaires timestamps and add selected_tier
+        r#"ALTER TABLE risk_questionnaires ALTER COLUMN completed_at TYPE TIMESTAMPTZ USING completed_at AT TIME ZONE 'UTC';"#,
+        r#"ALTER TABLE risk_questionnaires ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';"#,
+        r#"ALTER TABLE risk_questionnaires ADD COLUMN IF NOT EXISTS selected_tier VARCHAR(20) DEFAULT 'priority';"#,
         // Insert default country tiers
         r#"INSERT INTO country_tiers (country_code, country_name, tier, flag_emoji) VALUES
             ('USA', 'United States', 1, '🇺🇸'),

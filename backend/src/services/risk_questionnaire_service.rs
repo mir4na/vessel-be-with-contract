@@ -57,6 +57,7 @@ impl RiskQuestionnaireService {
                     req.q2_answer,
                     req.q3_answer,
                     catalyst_unlocked,
+                    req.selected_tier,
                 )
                 .await
         } else {
@@ -68,6 +69,7 @@ impl RiskQuestionnaireService {
                     req.q2_answer,
                     req.q3_answer,
                     catalyst_unlocked,
+                    req.selected_tier,
                 )
                 .await
         }
@@ -80,6 +82,7 @@ impl RiskQuestionnaireService {
             Some(r) => Ok(RiskQuestionnaireStatusResponse {
                 completed: true,
                 catalyst_unlocked: r.catalyst_unlocked,
+                selected_tier: Some(r.selected_tier),
                 completed_at: Some(r.completed_at),
                 answers: Some(RiskQuestionnaireAnswers {
                     q1_answer: r.q1_answer,

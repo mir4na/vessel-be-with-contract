@@ -646,9 +646,11 @@ impl FundingService {
             .await?
             .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
 
-        if pool.status != "filled" {
-            return Err(AppError::BadRequest(
-                "Pool must be filled to disburse".to_string(),
+        // Allow disbursement if Filled OR Closed (manually closed early)
+        // Check if pool has funds
+        if pool.funded_amount <= Decimal::ZERO {
+             return Err(AppError::BadRequest(
+                "Pool has no funds to disburse".to_string(),
             ));
         }
 
@@ -658,30 +660,59 @@ impl FundingService {
             .await?
             .ok_or_else(|| AppError::NotFound("Invoice not found".to_string()))?;
 
-        let exporter_wallet = invoice.exporter_wallet_address.ok_or_else(|| {
-            AppError::ValidationError("Exporter wallet address not set".to_string())
+        // 1. Trigger Smart Contract Disbursement (Contract Transfers Tokens)
+        let nft = self
+            .invoice_repo
+            .find_nft_by_invoice(pool.invoice_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("NFT record not found".to_string()))?;
+
+        let token_id = nft.token_id.ok_or_else(|| {
+            AppError::InternalError("Token ID missing from NFT record".to_string())
         })?;
 
-        // Release funds via Escrow (On-chain transfer)
+        tracing::info!("Disbursing pool {} (Token ID: {})", pool.id, token_id);
+
         let _tx_hash = self
-            .escrow_service
-            .release_to_exporter(
-                pool.id,
-                invoice.exporter_id,
-                &exporter_wallet,
-                pool.funded_amount,
-            )
+            .blockchain_service
+            .record_disbursement_on_chain(token_id)
             .await?;
 
-        // Update status to disbursed
+        // 2. Update status to disbursed
         let pool = self.funding_repo.set_disbursed(pool.id).await?;
         self.invoice_repo
             .update_status(pool.invoice_id, "disbursed")
             .await?;
 
-        // Notify exporter
+        // 3. Calculate Repayment Amount (Funded Amount + Interest)
+        // Formula: Principal + (Principal * Rate * Days / 365)
+        let principal = pool.funded_amount;
+        let interest_rate = invoice
+            .priority_interest_rate
+            .unwrap_or(Decimal::from(10))
+            .to_f64()
+            .unwrap_or(10.0);
+        
+        let due_date = invoice.due_date;
+        let now = chrono::Utc::now().date_naive();
+        let days_until_due = (due_date - now).num_days().max(1); // Minimum 1 day interest
+        
+        let interest = principal.to_f64().unwrap_or(0.0) * (interest_rate / 100.0) * (days_until_due as f64 / 365.0);
+        let repayment_amount = principal + Decimal::from_f64(interest).unwrap_or(Decimal::ZERO);
+
+        tracing::info!(
+            "Repayment calculation for pool {}: Principal {}, Interest {}, Total {}", 
+            pool.id, principal, interest, repayment_amount
+        );
+
+        // 4. Generate/Prepare Repayment QR (Send to Exporter)
         if let Some(exporter) = self.user_repo.find_by_id(invoice.exporter_id).await? {
             if let Some(email) = &exporter.email {
+                // Generate QR Code URL pointing to Contract Address (more trustless)
+                let contract_address = self.config.invoice_pool_contract_addr.clone();
+                let qr_data = format!("ethereum:{}?value={}&token={}", contract_address, repayment_amount, self.config.idrx_token_contract_addr);
+                let qr_url = format!("https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={}", urlencoding::encode(&qr_data));
+
                 let _ = self
                     .email_service
                     .send_disbursement_notification(
@@ -690,6 +721,38 @@ impl FundingService {
                         pool.funded_amount.to_f64().unwrap_or(0.0),
                     )
                     .await;
+                
+                // Send separate "Repayment Instructions" email
+                 let _ = self.email_service.send_email(
+                    email,
+                    "Funding Disbursed - Repayment Instructions",
+                    &format!(
+                        "<html>
+                            <body>
+                                <h1>Funding Disbursed!</h1>
+                                <p>Your invoice #{} has been funded with {} IDRX.</p>
+                                <p>The funds have been sent to your wallet.</p>
+                                <hr/>
+                                <h2>Repayment Instructions</h2>
+                                <p>Please repay the total amount before the due date: {}</p>
+                                <h3>Total Repayment: {} IDRX</h3>
+                                <p>(Principal: {} + Interest: {})</p>
+                                <br/>
+                                <img src='{}' alt='Repayment QR Code' />
+                                <p>Send IDRX directly to Contract: {}</p>
+                                <p><small>Your payment will be automatically distributed to investors.</small></p>
+                            </body>
+                        </html>",
+                        invoice.invoice_number,
+                        pool.funded_amount,
+                        due_date,
+                        repayment_amount.round_dp(2),
+                        principal,
+                        Decimal::from_f64(interest).unwrap_or(Decimal::ZERO).round_dp(2),
+                        qr_url,
+                        contract_address
+                    )
+                ).await;
             }
         }
 
@@ -760,6 +823,12 @@ impl FundingService {
             ));
         }
 
+        // If pool has funds, trigger disbursement (Close & Disburse)
+        if pool.funded_amount > Decimal::ZERO {
+            return self.disburse_pool(pool_id).await;
+        }
+
+        // Otherwise, Cancel/Close empty pool
         // Close on-chain
         let nft = self
             .invoice_repo
@@ -785,6 +854,53 @@ impl FundingService {
             .await?;
 
         Ok(closed_pool)
+    }
+
+    pub async fn process_repayment(&self, pool_id: Uuid, tx_hash: String, total_amount: Decimal) -> AppResult<FundingPool> {
+        let pool = self
+            .funding_repo
+            .find_by_id(pool_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Pool not found".to_string()))?;
+
+        if pool.status != "disbursed" {
+            return Err(AppError::BadRequest(
+                "Pool must be disbursed to process repayment".to_string(),
+            ));
+        }
+
+        // 1. Verify Repayment Transaction (Exporter -> Contract directly)
+        // We verify that the tx_hash is a valid IDRX transfer to the contract
+        let _verified_transfer = self.blockchain_service
+            .verify_idrx_transfer_to_contract(&tx_hash, total_amount)
+            .await
+            .map_err(|e| AppError::BlockchainError(format!(
+                "Failed to verify repayment transfer to contract: {}. Please ensure you transferred {} IDRX to the contract address.",
+                e, total_amount
+            )))?;
+
+        // 2. Calculate Investor Returns
+        let investments = self.funding_repo.find_investments_by_pool(pool_id).await?;
+        let mut investor_returns_amounts = Vec::new();
+
+        for inv in investments {
+            // For now, assume full repayment: Return = Expected Return
+            investor_returns_amounts.push(inv.expected_return);
+        }
+
+        // 3. Record Repayment on Chain (Contract already has funds, just trigger distribution)
+        let nft = self.invoice_repo.find_nft_by_invoice(pool.invoice_id).await?.unwrap();
+        let token_id = nft.token_id.unwrap();
+
+        let _repay_tx_hash = self.blockchain_service
+            .record_repayment_on_chain(token_id, total_amount, investor_returns_amounts)
+            .await?;
+
+        // 5. Update DB Status
+        let updated_pool = self.funding_repo.set_repaid(pool_id).await?;
+        self.invoice_repo.update_status(pool.invoice_id, "paid").await?;
+
+        Ok(updated_pool)
     }
 
     /// Get all funding pools for a specific mitra (exporter)

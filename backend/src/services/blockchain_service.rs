@@ -50,6 +50,7 @@ abigen!(
     r#"[
         function createPool(uint256 tokenId) external
         function recordInvestment(uint256 tokenId, address investor, uint256 amount) external
+        function recordDisbursement(uint256 tokenId) external
         function recordRepayment(uint256 tokenId, uint256 totalAmount, uint256[] calldata investorReturns) external
         function closePoolEarly(uint256 tokenId) external
     ]"#
@@ -418,6 +419,20 @@ impl BlockchainService {
         self.verify_idrx_transfer(
             tx_hash,
             &self.config.platform_wallet_address,
+            expected_amount,
+        )
+        .await
+    }
+
+    /// Verify repayment transfer - exporter sends IDRX directly to contract
+    pub async fn verify_idrx_transfer_to_contract(
+        &self,
+        tx_hash: &str,
+        expected_amount: Decimal,
+    ) -> AppResult<VerifiedTransfer> {
+        self.verify_idrx_transfer(
+            tx_hash,
+            &self.config.invoice_pool_contract_addr,
             expected_amount,
         )
         .await
@@ -983,6 +998,50 @@ impl BlockchainService {
             })?
             .ok_or_else(|| {
                 AppError::BlockchainError("verifyShipment transaction failed".to_string())
+            })?;
+
+        Ok(format!("{:?}", receipt.transaction_hash))
+    }
+
+    pub async fn record_disbursement_on_chain(&self, token_id: i64) -> AppResult<String> {
+        if self.config.skip_blockchain_verification {
+            tracing::info!("SKIPPING blockchain disbursement recording (Test Mode)");
+            return Ok("0xTestRecordDisburseHash".to_string());
+        }
+
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            AppError::BlockchainError("Platform wallet not configured".to_string())
+        })?;
+
+        let contract_addr: Address =
+            self.config
+                .invoice_pool_contract_addr
+                .parse()
+                .map_err(|_| {
+                    AppError::BlockchainError("Invalid InvoicePool contract address".to_string())
+                })?;
+
+        let client = SignerMiddleware::new(self.provider.clone(), wallet.clone());
+        let contract = InvoicePool::new(contract_addr, Arc::new(client));
+
+        tracing::info!("Recording disbursement on-chain for token {}", token_id);
+
+        let tx = contract.record_disbursement(U256::from(token_id));
+
+        let pending_tx = tx.send().await.map_err(|e| {
+            AppError::BlockchainError(format!("Failed to send record disbursement tx: {}", e))
+        })?;
+
+        let receipt = pending_tx
+            .await
+            .map_err(|e| {
+                AppError::BlockchainError(format!(
+                    "Failed to wait for record disbursement receipt: {}",
+                    e
+                ))
+            })?
+            .ok_or_else(|| {
+                AppError::BlockchainError("Record disbursement transaction failed".to_string())
             })?;
 
         Ok(format!("{:?}", receipt.transaction_hash))

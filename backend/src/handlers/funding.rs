@@ -305,6 +305,29 @@ pub async fn get_exporter_pools(
     Ok(HttpResponse::Ok().json(ApiResponse::paginated(pools, total, page, per_page)))
 }
 
+/// POST /api/v1/admin/pools/{id}/repay
+pub async fn process_pool_repayment(
+    state: web::Data<AppState>,
+    _req: HttpRequest, // Admin check in middleware
+    path: web::Path<Uuid>,
+    body: web::Json<crate::models::RepayInvoiceRequest>,
+) -> AppResult<HttpResponse> {
+    let pool_id = path.into_inner();
+    let data = body.into_inner();
+    let amount = rust_decimal::Decimal::from_f64_retain(data.amount)
+        .ok_or_else(|| AppError::ValidationError("Invalid amount".to_string()))?;
+
+    let result = state
+        .funding_service
+        .process_repayment(pool_id, data.tx_hash, amount)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(
+        result,
+        "Repayment processed successfully",
+    )))
+}
+
 /// POST /api/v1/admin/invoices/{id}/repay (Used by Mitra/Admin)
 pub async fn process_repayment(
     state: web::Data<AppState>,
