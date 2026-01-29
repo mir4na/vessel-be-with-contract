@@ -29,15 +29,20 @@ impl InvoiceRepository {
         due_date: NaiveDate,
         description: Option<&str>,
         exporter_wallet_address: &str,
+        priority_ratio: Decimal,
+        catalyst_ratio: Decimal,
+        priority_interest_rate: Decimal,
+        catalyst_interest_rate: Decimal,
     ) -> AppResult<Invoice> {
         let invoice = sqlx::query_as::<_, Invoice>(
             r#"
             INSERT INTO invoices (
                 exporter_id, buyer_name, buyer_country, buyer_email, invoice_number,
                 currency, amount, issue_date, due_date, description, status,
-                exporter_wallet_address
+                exporter_wallet_address,
+                priority_ratio, catalyst_ratio, priority_interest_rate, catalyst_interest_rate
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft', $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft', $11, $12, $13, $14, $15)
             RETURNING *
             "#,
         )
@@ -52,6 +57,10 @@ impl InvoiceRepository {
         .bind(due_date)
         .bind(description)
         .bind(exporter_wallet_address)
+        .bind(priority_ratio)
+        .bind(catalyst_ratio)
+        .bind(priority_interest_rate)
+        .bind(catalyst_interest_rate)
         .fetch_one(&self.pool)
         .await?;
 

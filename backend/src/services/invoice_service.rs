@@ -75,6 +75,15 @@ impl InvoiceService {
         let amount = Decimal::from_f64(req.idr_amount)
             .ok_or_else(|| AppError::ValidationError("Invalid amount".to_string()))?;
 
+        // Parse ratios and rates
+        let priority_ratio = req.priority_ratio.map(|r| Decimal::from_f64_retain(r).unwrap_or(Decimal::new(80, 0))).unwrap_or(Decimal::new(80, 0));
+        let catalyst_ratio = req.catalyst_ratio.map(|r| Decimal::from_f64_retain(r).unwrap_or(Decimal::new(20, 0))).unwrap_or(Decimal::new(20, 0));
+
+        let priority_rate = Decimal::from_f64(req.priority_interest_rate)
+            .ok_or_else(|| AppError::ValidationError("Invalid priority rate".to_string()))?;
+        let catalyst_rate = Decimal::from_f64(req.catalyst_interest_rate)
+            .ok_or_else(|| AppError::ValidationError("Invalid catalyst rate".to_string()))?;
+
         let invoice = self
             .invoice_repo
             .create(
@@ -89,22 +98,16 @@ impl InvoiceService {
                 due_date,
                 req.description.as_deref(),
                 &req.wallet_address,
+                priority_ratio,
+                catalyst_ratio,
+                priority_rate,
+                catalyst_rate,
             )
             .await?;
 
         // Update with additional fields
         self.invoice_repo
             .set_repeat_buyer(invoice.id, req.is_repeat_buyer)
-            .await?;
-
-        // Update interest rates
-        let priority_rate = Decimal::from_f64(req.priority_interest_rate)
-            .ok_or_else(|| AppError::ValidationError("Invalid priority rate".to_string()))?;
-        let catalyst_rate = Decimal::from_f64(req.catalyst_interest_rate)
-            .ok_or_else(|| AppError::ValidationError("Invalid catalyst rate".to_string()))?;
-
-        self.invoice_repo
-            .update_interest_rates(invoice.id, priority_rate, catalyst_rate)
             .await?;
 
         // Return invoice in draft status
