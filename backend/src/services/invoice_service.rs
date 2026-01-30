@@ -167,6 +167,10 @@ impl InvoiceService {
         let documents = self.invoice_repo.find_documents_by_invoice(id).await?;
         invoice.documents = Some(documents);
 
+        // Populate NFT details if they exist
+        let nft = self.invoice_repo.find_nft_by_invoice(id).await?;
+        invoice.nft = nft;
+
         Ok(invoice)
     }
 

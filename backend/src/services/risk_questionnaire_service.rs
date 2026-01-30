@@ -93,6 +93,7 @@ impl RiskQuestionnaireService {
             None => Ok(RiskQuestionnaireStatusResponse {
                 completed: false,
                 catalyst_unlocked: false,
+                selected_tier: None,
                 completed_at: None,
                 answers: None,
             }),
