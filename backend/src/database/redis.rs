@@ -8,17 +8,7 @@ pub type RedisPool = Pool;
 
 /// Create a new Redis connection pool
 pub async fn create_redis_pool(config: &Config) -> Result<RedisPool> {
-    let redis_url = if config.redis_password.is_empty() {
-        format!(
-            "redis://{}:{}/{}",
-            config.redis_host, config.redis_port, config.redis_db
-        )
-    } else {
-        format!(
-            "redis://:{}@{}:{}/{}",
-            config.redis_password, config.redis_host, config.redis_port, config.redis_db
-        )
-    };
+    let redis_url = config.redis_url.clone();
 
     let redis_config = RedisConfig::from_url(redis_url);
     let pool = redis_config.create_pool(Some(Runtime::Tokio1))?;

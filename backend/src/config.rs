@@ -18,6 +18,7 @@ pub struct Config {
     pub postgres_db: String,
 
     // Redis
+    pub redis_url: String,
     pub redis_host: String,
     pub redis_port: u16,
     pub redis_password: String,
@@ -114,6 +115,7 @@ impl Config {
             postgres_db: get_env_or_default("POSTGRES_DB", "vessel"),
 
             // Redis
+            redis_url: get_env_or_default("REDIS_URL", "redis://localhost:6379"),
             redis_host: get_env_or_default("REDIS_HOST", "localhost"),
             redis_port: get_env_or_default("REDIS_PORT", "6379")
                 .parse()
