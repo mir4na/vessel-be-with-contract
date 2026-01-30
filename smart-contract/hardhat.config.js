@@ -27,14 +27,12 @@ module.exports = {
       url: process.env.BASE_RPC_URL || "https://mainnet.base.org",
       chainId: 8453,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      gasPrice: 1000000000, // 1 gwei
     },
     // Lisk Sepolia (legacy)
     lisk_sepolia: {
       url: process.env.LISK_SEPOLIA_RPC_URL || "https://rpc.sepolia-api.lisk.com",
       chainId: 4202,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      gasPrice: 5000000000, // 5 gwei
     },
   },
   etherscan: {
