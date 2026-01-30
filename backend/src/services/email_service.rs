@@ -1,7 +1,7 @@
 use lettre::{
     message::{header::ContentType, Mailbox},
     transport::smtp::authentication::Credentials,
-    Message, SmtpTransport, Transport,
+    Message, AsyncSmtpTransport, Tokio1Executor, AsyncTransport,
 };
 use std::sync::Arc;
 
@@ -46,14 +46,16 @@ impl EmailService {
             self.config.smtp_password.clone(),
         );
 
-        let mailer = SmtpTransport::starttls_relay(&self.config.smtp_host)
+        let mailer = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.config.smtp_host)
             .map_err(|e| AppError::EmailError(e.to_string()))?
             .credentials(creds)
             .port(self.config.smtp_port)
+            .timeout(Some(std::time::Duration::from_secs(10)))
             .build();
 
         mailer
-            .send(&email)
+            .send(email)
+            .await
             .map_err(|e| AppError::EmailError(e.to_string()))?;
 
         tracing::info!("Email sent to {}", to);
