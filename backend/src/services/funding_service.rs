@@ -209,9 +209,10 @@ impl FundingService {
             }
 
             // Check if catalyst is unlocked
-            if !self.rq_repo.is_catalyst_unlocked(investor_id).await? {
-                return Err(AppError::CatalystNotUnlocked);
-            }
+            // REMOVED per user feedback: Questionnaire no longer blocks catalyst selection. Consents are handled in request.
+            // if !self.rq_repo.is_catalyst_unlocked(investor_id).await? {
+            //     return Err(AppError::CatalystNotUnlocked);
+            // }
         }
 
         // Get investor
@@ -527,11 +528,15 @@ impl FundingService {
             .num_days();
 
             // Status display
-            let (status_display, status_color) = match inv.status.as_str() {
-                "active" => ("Active", "green"),
-                "repaid" => ("Repaid", "blue"),
-                "defaulted" => ("Defaulted", "red"),
-                _ => (inv.status.as_str(), "gray"),
+            let (status_display, status_color) = if pool.status == "disbursed" {
+                ("Disbursed", "blue")
+            } else {
+                match inv.status.as_str() {
+                    "active" => ("Active", "green"),
+                    "repaid" => ("Repaid", "blue"),
+                    "defaulted" => ("Defaulted", "red"),
+                    _ => (inv.status.as_str(), "gray"),
+                }
             };
 
             enriched_investments.push(crate::models::InvestorActiveInvestment {
