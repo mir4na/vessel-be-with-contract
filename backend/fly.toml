@@ -1,0 +1,19 @@
+# fly.toml app configuration file generated for vessel-backend
+
+app = "vessel-backend"
+primary_region = "sin" # Singapore is usually best for SE Asia
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory_mb = 512 # Rust is memory-efficient, 512MB is plenty for this API
